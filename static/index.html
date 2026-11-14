@@ -1,1 +1,1203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EmoEarth 3D</title>
+<script>
+// EmoEarth problem reporter: sends script errors and files that fail to load to the server log (applog.py).
+// At most 20 reports per page load; nothing personal is sent beyond the page address and browser name.
+(function () {
+  var sent = 0;
+  function send(kind, msg, extra) {
+    if (sent++ >= 20) return;
+    try {
+      var o = { kind: kind, msg: String(msg || "").slice(0, 500), page: location.pathname + location.search };
+      for (var k in (extra || {})) o[k] = extra[k];
+      var body = JSON.stringify(o);
+      if (navigator.sendBeacon) navigator.sendBeacon("/api/clientlog", new Blob([body], { type: "application/json" }));
+      else fetch("/api/clientlog", { method: "POST", headers: { "Content-Type": "application/json" }, body: body, keepalive: true });
+    } catch (e) {}
+  }
+  window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (t && t !== window && (t.src || t.href)) send("resource", "failed to load", { src: t.src || t.href });
+    else send("error", e.message, { src: e.filename, line: e.lineno, col: e.colno,
+                                     stack: e.error && e.error.stack ? String(e.error.stack).slice(0, 1500) : "" });
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e.reason || {};
+    send("promise", r.message || r, { stack: r.stack ? String(r.stack).slice(0, 1500) : "" });
+  });
+  window.emoReport = send;
+})();
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { position: fixed; background: rgba(10, 12, 18, 0.68); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(6px); }
+  
+  #logos {position: fixed; top:22px; left: 20px; display: flex; align-items: center; gap: 10px; z-index: 1000;}
+  .logo{ height:60px; width: auto}
 
+  #info { top: 112px; left: 2px; min-width: 250px; }
+  #date { font-size: 20px; font-weight: 500; letter-spacing: 0.5px; }
+  #music { margin-top: 4px; font-size: 14px; color: #dfe6ff; }
+  #temps { margin-top: 6px; font-size: 12px; color: #9aa3b8; line-height: 1.5; }
+  #emotion { margin-top: 2px; font-size: 15px; font-weight: 600; letter-spacing: 0.4px; transition: color 1.2s; }
+  #emotion small { font-weight: 400; color: #9aa3b8; font-size: 12px; margin-right: 4px; }
+  #music.flash { animation: keyflash 1.6s ease-out; }
+  @keyframes keyflash { 0% { color: #fff; text-shadow: 0 0 12px #fff; } 100% { color: #dfe6ff; text-shadow: none; } }
+  #info { transition: box-shadow 1.2s; }
+  #orch { margin-top: 12px; }
+  #orch .ttl { font-size: 12px; margin-bottom: 6px; color: #c9cfdd; }
+  #orch .ins { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #c9cfdd; height: 16px; }
+  #orch .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  #orch .nm { width: 112px; flex: none; }
+  #orch .lv { flex: 1; height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+  #orch .lv i { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.25s; }
+  #wave { display: block; width: 250px; height: 56px; margin-top: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); }
+  #spark { margin-top: 8px; width: 260px; height: 56px; display: block; }
+  #legend { top: 98px; right: 2px; width: 250px; }
+  #where { top: 16px; right: 16px; padding: 8px 14px; text-align: right; cursor: grab; user-select: none; touch-action: none; z-index: 3; }
+  #where.dragging { cursor: grabbing; }
+  #where .dt { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; }
+  #cdate { font-size: 13px; color: #c9cfdd; letter-spacing: 0.3px; }
+  #clock { font-size: 22px; font-weight: 500; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  #place { font-size: 12px; color: #9aa3b8; margin-top: 2px; }
+  #who { font-size: 12px; color: #9aa3b8; margin-top: 6px; }
+  #who a { color: #e9b949; text-decoration: none; margin-left: 6px; }
+  #who a:hover, #who a:focus-visible { text-decoration: underline; }
+  #legend .bar { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #8a1cff, #1a1aff, #2ec8ff, #66e64d, #ffff33, #ff9a1a, #e6331a); }
+  #legend .lab { display: flex; justify-content: space-between; font-size: 11px; color: #c9cfdd; margin-top: 4px; }
+  #legend .ttl { font-size: 12px; margin-bottom: 8px; color: #c9cfdd; }
+  #layer { width: 100%; font: inherit; font-size: 12px; color: #e8ecf5; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; padding: 4px 6px; cursor: pointer; }
+  #layer:focus-visible { outline: 2px solid #7fd6ff; outline-offset: 1px; }
+  #layer option { color: #111; }
+  #legend .src { font-size: 10px; color: #8d96aa; margin-top: 4px; }
+  #bar { left: 50%; bottom: 16px; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); box-sizing: border-box; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row + .row { margin-top: 10px; }
+  button { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.2); }
+  button.primary { background: rgba(255,255,255,0.1); min-width: 20px; border-radius: 50%; backdrop-filter: blur(6px); font-size:16px }
+  input[type=range] { accent-color: #3b6df0; }
+  #seek { flex: 1; min-width: 160px; }
+  label { font-size: 13px; color: #cfd5e6; display: flex; align-items: center; gap: 6px; }
+  #time { font-size: 12px; color: #9aa3b8; min-width: 84px; text-align: right; }
+  #hint { font-size: 12px; color: #8b93a8; }
+  #live { margin-top: 8px; font-size: 11px; color: #8b93a8; line-height: 1.5; max-width: 260px; }
+  #live button { padding: 3px 8px; font-size: 11px; margin-top: 4px; }
+  #badge { top: 16px; left: 50%; transform: translateX(-50%); background: #3b6df0; border-color: #3b6df0; border-radius: 20px; padding: 8px 16px; font-size: 13px; cursor: pointer; display: none; z-index: 5; }
+  /* minimise buttons */
+  .panel { transition: padding 0.2s; }
+  .minbtn { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; padding: 0; border-radius: 6px; font-size: 14px; line-height: 20px; text-align: center; color: #c9cfdd; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); z-index: 2; }
+  .minbtn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  #info, #legend { padding-right: 34px; }
+  .panel.min > *:not(.keep):not(.minbtn) { display: none !important; }
+  .panel.min #date { font-size: 16px; }
+  #legend.min { width: auto; }
+  #legend.min .ttl { margin-bottom: 0; }
+  #bar.min { width: auto; padding-right: 40px; }
+  #bar.min .row.keep { flex-wrap: nowrap; }
+  #bar.min #seek { min-width: 220px; }
+  body.panning, body.panning canvas#gl { cursor: ew-resize; }
+  #info, #legend, #bar { cursor: grab; user-select: none; touch-action: none; }
+  #info button, #legend button, #bar button, #bar input, #bar label { cursor: pointer; }
+  .panel.dragging { cursor: grabbing; opacity: 0.92; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+  #ver { position: fixed; right: 16px; bottom: 16px; font-size: 11px; color: #8b93a8; letter-spacing: 0.6px; z-index: 5; cursor: default; }
+  /* narration (audio description for blind and low-vision listeners) */
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  #caption { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); max-width: min(640px, calc(100% - 700px)); min-width: 280px;
+             background: rgba(10,12,18,0.82); border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; padding: 10px 14px;
+             font-size: 14px; line-height: 1.5; color: #e8ecf7; display: none; z-index: 6; }
+  #caption .who { font-size: 11px; color: #9aa3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+  #describe[aria-pressed="true"] { background: #3b6df0; border-color: #3b6df0; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #ffd36b; outline-offset: 2px; }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #9aa3b8; background: #000; z-index: 10; }
+</style>
+</head>
+<body>
+<canvas id="gl" role="img" aria-label="3D globe of the Earth showing ice surface temperature, animated day by day with orchestral music"></canvas>
+<div id="loading">Loading globe ...</div>
+
+<!-- Logo on Top Left of UI -->
+<div id="logos">
+  <img src="static/logo/nasa-seeklogo.png" alt="nasa_logo" class="logo">
+  <img src="static/logo/StarTrek_logo_2.png" alt="starttrek_logo" class="logo">
+</div>
+
+
+<!--  -->
+
+<div class="panel" id="info">
+  <div id="date" class="keep">-</div>
+  <div id="emotion"></div>
+  <div id="music">Press Play to start</div>
+  <div id="temps"></div>
+  <div id="live"><span id="fresh"></span><br><button id="check">Check for new data</button></div>
+  <canvas id="spark" width="520" height="112" aria-hidden="true"></canvas>
+</div>
+
+<div class="panel" id="badge"></div>
+
+<!-- narration caption (visible) and screen-reader announcements (invisible) -->
+<div id="caption" aria-hidden="true"><div class="who">Narration</div><div id="captext"></div></div>
+<div id="sr" class="sr-only" aria-live="polite"></div>
+
+<div id="ver">EmoEarth</div>
+
+<div class="panel" id="where"><div class="dt"><span id="cdate">&nbsp;</span><span id="clock">--:--:--</span></div><div id="place">&nbsp;</div><div id="who" hidden><span id="whoname"></span> <a href="logout" id="signout">Sign out</a></div></div>
+
+<div class="panel" id="legend">
+  <div class="ttl keep"><select id="layer" aria-label="Data layer shown on the globe. Shortcut keys: Z ice surface, X ocean currents, C carbon dioxide" aria-keyshortcuts="Z X C" title="Data layer (keys: Z ice, X ocean, C carbon dioxide)">
+    <option value="ice" title="MODIS Terra Ice Surface Temperature (Day)">Ice surface temperature (MODIS)</option>
+    <option value="ocean" title="Global Sea Surface Currents and Temperature, ECCO2 model">Ocean currents &amp; sea temperature</option>
+    <option value="co2" title="DYAMOND Global Carbon Dioxide, NASA GEOS model">Carbon dioxide (DYAMOND)</option>
+  </select></div>
+  <div class="bar" id="lbar"></div>
+  <div class="lab" id="llab"><span>223.2 K<br>(-50 °C)</span><span style="text-align:right">313.2 K<br>(40 °C)</span></div>
+  <div class="src" id="lsrc"></div>
+  <div id="orch"><div class="ttl">Orchestra: each colour is a section</div></div>
+  <canvas id="wave" width="500" height="112"></canvas>
+</div>
+
+<div class="panel" id="bar">
+  <div class="row keep">
+    <button class="primary" id="play" aria-label="Play">▶</button>
+    <button id="describe" aria-pressed="false" aria-label="Describe the data aloud" title="Describe the data aloud (D)">🗣 Describe</button>
+    <input type="range" id="seek" min="0" max="100" step="0.05" value="0">
+    <span id="time">0:00 / 0:00</span>
+  </div>
+  <div class="row">
+    <button id="north">Northern</button>
+    <button id="south">Southern</button>
+    <button id="equator">Equator</button>
+    <label><input type="checkbox" id="spin" checked autocomplete="off"> Auto-rotate</label>
+    <label><input type="checkbox" id="base" autocomplete="off"> Base map</label>
+    <label><input type="checkbox" id="borders" autocomplete="off"> Borders</label>
+    <label><input type="checkbox" id="coast" checked autocomplete="off"> Coastlines</label>
+    <label title="Play the spoken description before the music starts"><input type="checkbox" id="narron" autocomplete="off"> Narration first</label>
+    <label>Data opacity <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="1" style="width:90px"></label>
+  </div>
+  <div class="row"><span id="hint">Drag to rotate · right-drag or Shift+drag to slide the Earth sideways · double-click to re-centre · drag a panel to move it · scroll or pinch to zoom · Space to play/pause · D to hear the description · Esc to stop it · Z / X / C to switch layer (ice / ocean / carbon dioxide)</span></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const AUDIO_OFFSET = 0.0;      // seconds: raise if the picture runs ahead of the sound, lower if behind
+
+// ---------- data layer (dropdown in the legend): each layer has its own frames, music and timeline ----------
+const LAYERS = { ice: "/static/data/", ocean: "/static/data/ocean/", co2: "/static/data/co2/" };
+const PALETTES = {                                                  // 7 colours = the 7 orchestra sections, cold to warm
+  ice: ["#8a1cff", "#1a1aff", "#2ec8ff", "#66e64d", "#ffff33", "#ff9a1a", "#e6331a"],
+  ocean: ["#345ff8", "#32a6c8", "#3ad98e", "#3cff6a", "#c3ff24", "#f9b41d", "#f71a19"],
+  co2: ["#dac187", "#e9af4a", "#ea8331", "#e16c27", "#e2551f", "#e5420f", "#e6110a"],
+};
+let LAYER = new URLSearchParams(location.search).get("layer");
+if (!LAYER) { try { LAYER = localStorage.getItem("layer"); } catch (e) {} }
+if (!(LAYER in LAYERS)) LAYER = "ice";
+let DATA = LAYERS[LAYER], TL = null;
+try {
+  const r = await fetch(DATA + "timeline.json?" + Date.now());
+  if (!r.ok) throw new Error("no timeline");
+  TL = await r.json();
+} catch (e) { LAYER = "ice"; DATA = LAYERS.ice; }                    // ocean layer not built yet: show the ice layer
+if (!TL) TL = await (await fetch(DATA + "timeline.json?" + Date.now())).json();
+{
+  const sel = document.getElementById("layer");
+  sel.value = LAYER;
+  for (const key of Object.keys(LAYERS)) {                          // grey out layers that have not been built
+    if (key === LAYER) continue;
+    fetch(LAYERS[key] + "timeline.json", { method: "HEAD" }).then(r => {
+      if (!r.ok) { const o = sel.querySelector('option[value="' + key + '"]'); o.disabled = true; o.textContent += " (not built yet)"; }
+    }).catch(() => {});
+  }
+  sel.addEventListener("change", () => {
+    try { localStorage.setItem("layer", sel.value); } catch (e) {}
+    const u = new URL(location.href); u.searchParams.set("layer", sel.value); location.href = u.toString();
+  });
+  if (LAYER === "ocean") {
+    document.getElementById("lbar").style.background =
+      "linear-gradient(90deg, #345ff8, #32a6c8, #3ad98e, #3cff6a, #c3ff24, #fbff21, #f9b41d, #f71a19)";
+    document.getElementById("llab").innerHTML = '<span>0 \u00B0C</span><span>10</span><span>20</span><span style="text-align:right">32 \u00B0C</span>';
+    document.getElementById("lsrc").textContent = "NASA/GSFC Scientific Visualization Studio 3912 \u00B7 ECCO2 model (MIT/JPL), 2007\u201308";
+  }
+  if (LAYER === "co2") {
+    document.getElementById("lbar").style.background =
+      "linear-gradient(90deg, rgba(200,200,200,0.15), rgba(222,206,170,0.35) 50%, #dac187 56%, #e9af4a 64%, #ea8331 70%, #e2551f 85%, #e6110a)";
+    document.getElementById("llab").innerHTML = '<span>380</span><span>420</span><span style="text-align:right">460 ppm CO\u2082</span>';
+    document.getElementById("lsrc").textContent = "Below about 425 ppm the colour is see-through. NASA/GSFC Scientific Visualization Studio 5436 \u00B7 GEOS model, Jan\u2013Mar 2020";
+  }
+}
+
+// app version and when this EmoEarth was set up (build_info.json from make_azure_package.py, via /api/about);
+// edit static/version.txt when you release
+function aboutLabel(a) {
+  const when = a.packaged_at || a.started_at;
+  const d = when ? new Date(when) : null;
+  const txt = d && !isNaN(d) ? d.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  return { text: "EmoEarth " + (a.version || "") + (txt ? " \u00B7 " + (a.packaged_at ? "updated " : "running since ") + txt : ""),
+           title: (a.packaged_at ? "Set up on " + a.host + ": " + txt : "Running on " + a.host + " since " + txt) +
+                  (a.git ? " \u00B7 git " + a.git : "") + " \u00B7 build " + a.build };
+}
+let BUILD = null;
+fetch("/api/about?" + Date.now()).then(r => r.ok ? r.json() : null).then(a => {
+  if (!a) return;
+  BUILD = a.build;
+  const l = aboutLabel(a), el = document.getElementById("ver");
+  el.textContent = l.text; el.title = l.title;
+}).catch(() => {
+  fetch("/static/version.txt?" + Date.now()).then(r => r.ok ? r.text() : "").then(v => {
+    if (v.trim()) document.getElementById("ver").textContent = "EmoEarth " + v.trim();
+  }).catch(() => {});
+});
+// a new version was put online while this page is open: offer a reload
+setInterval(() => {
+  fetch("/api/about?" + Date.now()).then(r => r.ok ? r.json() : null).then(a => {
+    if (!a || !BUILD || a.build === BUILD || a.build.startsWith("local-")) return;
+    const b = document.getElementById("badge");
+    b.style.display = "block";
+    b.textContent = "EmoEarth has been updated (" + aboutLabel(a).text.split("updated ")[1] + ") \u2013 click to reload";
+  }).catch(() => {});
+}, 300000);
+const N = TL.n;
+const frameUrl = i => DATA + "frames/" + TL.frames[i] + "." + (TL.frame_ext || "png") + "?v=" + TL.frame_ver[i];
+
+const $ = id => document.getElementById(id);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+
+// ---------- three.js scene ----------
+const canvas = $("gl");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(0, 0.9, 2.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;          // keep the Earth locked at the center of the screen
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1.12;
+controls.maxDistance = 6;
+controls.zoomSpeed = 0.8;
+controls.rotateSpeed = 0.6;
+controls.autoRotateSpeed = 0.6;
+
+// horizontal slide of the Earth on screen (does not change the view angle)
+let slideX = 0;
+function applySlide() {
+  const w = window.innerWidth, h = window.innerHeight;
+  slideX = clamp(slideX, -w * 0.45, w * 0.45);
+  if (slideX === 0) camera.clearViewOffset();
+  else camera.setViewOffset(w, h, -slideX, 0, w, h);
+  camera.updateProjectionMatrix();
+}
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  applySlide();
+}
+window.addEventListener("resize", resize);
+resize();
+
+// stars
+{
+  const pts = new Float32Array(1500 * 3);
+  for (let i = 0; i < 1500; i++) {
+    const v = new THREE.Vector3().randomDirection().multiplyScalar(30 + Math.random() * 10);
+    pts.set([v.x, v.y, v.z], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9aa3b8, size: 0.07, sizeAttenuation: true })));
+}
+
+// ---------- texture cache ----------
+const loader = new THREE.TextureLoader();
+const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+blank.needsUpdate = true;
+const cache = new Map();
+
+function getTex(i) {
+  i = clamp(i, 0, N - 1);
+  let e = cache.get(i);
+  if (e && e.failed && performance.now() - e.failed > 10000) { cache.delete(i); e = null; }   // try a failed frame again
+  if (!e) {
+    e = { tex: null, ready: false, last: 0, failed: 0 };
+    loader.load(frameUrl(i), t => {
+      t.minFilter = THREE.LinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      e.tex = t;
+      e.ready = true;
+      needRender = true;                                // a frame finished loading: show it even when idle
+    }, undefined, () => {
+      if (!e.reported && window.emoReport) emoReport("frame", "globe frame failed to load", { src: frameUrl(i), layer: LAYER });
+      e.reported = true; e.failed = performance.now();
+    });
+    cache.set(i, e);
+  }
+  e.last = performance.now();
+  return e.ready ? e.tex : null;
+}
+
+function prune(keepFrom, keepTo) {
+  if (cache.size <= 18) return;
+  for (const [k, e] of cache) {
+    if ((k < keepFrom - 2 || k > keepTo + 2) && e.ready) {
+      e.tex.dispose();
+      cache.delete(k);
+    }
+  }
+}
+
+// ---------- globe ----------
+const uniforms = {
+  uA: { value: blank }, uB: { value: blank }, uBase: { value: blank },
+  uF: { value: 0 }, uHasBase: { value: 0 }, uShowBase: { value: 1 },
+  uThr: { value: 0.06 }, uOpacity: { value: 1 },
+  uBorders: { value: blank }, uHasBorders: { value: 0 }, uBordersOn: { value: 1 },
+  uCoast: { value: blank }, uHasCoast: { value: 0 }, uCoastOn: { value: 1 },
+};
+if (TL.has_base) {
+  loader.load("/static/data/base.jpg", t => { uniforms.uBase.value = t; uniforms.uHasBase.value = 1; });
+}
+
+// international boundaries: use the GIBS DoS_International_Boundaries image if build_assets could get it,
+// otherwise draw country borders ourselves (Natural Earth data) onto a canvas texture
+function setBorders(t) {
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  uniforms.uBorders.value = t;
+  uniforms.uHasBorders.value = 1;
+}
+async function drawBordersFallback() {
+  try {
+    const topojson = await import("https://cdn.jsdelivr.net/npm/topojson-client@3/+esm");
+    const world = await (await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json")).json();
+    const mesh = topojson.mesh(world, world.objects.countries, (a, b) => a !== b);
+    const W = 4096, H = 2048;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
+    for (const line of mesh.coordinates) {
+      ctx.beginPath();
+      let prev = null;
+      for (const [lon, lat] of line) {
+        const x = (lon + 180) / 360 * W, y = (90 - lat) / 180 * H;
+        if (prev === null || Math.abs(lon - prev) > 180) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        prev = lon;
+      }
+      ctx.stroke();
+    }
+    setBorders(new THREE.CanvasTexture(cv));
+  } catch (err) {
+    console.warn("Could not draw borders:", err);
+    $("borders").parentElement.style.display = "none";
+  }
+}
+if (TL.has_borders) {
+  loader.load("/static/data/borders.png", setBorders);
+} else {
+  drawBordersFallback();
+}
+
+// coastlines: GIBS Coastlines_15m image if available, otherwise outline the land polygons ourselves
+function setCoast(t) {
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  uniforms.uCoast.value = t;
+  uniforms.uHasCoast.value = 1;
+}
+async function drawCoastFallback() {
+  try {
+    const topojson = await import("https://cdn.jsdelivr.net/npm/topojson-client@3/+esm");
+    const world = await (await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json")).json();
+    const mesh = topojson.mesh(world, world.objects.land);
+    const W = 4096, H = 2048;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
+    for (const line of mesh.coordinates) {
+      ctx.beginPath();
+      let prev = null;
+      for (const [lon, lat] of line) {
+        const x = (lon + 180) / 360 * W, y = (90 - lat) / 180 * H;
+        // skip the artificial cut lines along the antimeridian and the south pole edge
+        const edge = prev !== null && ((Math.abs(lon) > 179.99 && Math.abs(prev[0]) > 179.99) || (lat < -89.99 && prev[1] < -89.99));
+        if (prev === null || Math.abs(lon - prev[0]) > 180 || edge) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        prev = [lon, lat];
+      }
+      ctx.stroke();
+    }
+    setCoast(new THREE.CanvasTexture(cv));
+  } catch (err) {
+    console.warn("Could not draw coastlines:", err);
+    $("coast").parentElement.style.display = "none";
+  }
+}
+if (TL.has_coast) {
+  loader.load("/static/data/coastlines.png", setCoast);
+} else {
+  drawCoastFallback();
+}
+const globe = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 128, 64),
+  new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `
+      varying vec2 vUv; varying vec3 vNormal;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      precision highp float;
+      uniform sampler2D uA; uniform sampler2D uB; uniform sampler2D uBase;
+      uniform float uF; uniform float uHasBase; uniform float uShowBase; uniform float uThr; uniform float uOpacity;
+      uniform sampler2D uBorders; uniform float uHasBorders; uniform float uBordersOn;
+      uniform sampler2D uCoast; uniform float uHasCoast; uniform float uCoastOn;
+      varying vec2 vUv; varying vec3 vNormal;
+      void main() {
+        vec4 A = texture2D(uA, vUv), B = texture2D(uB, vUv);
+        vec3 a = A.rgb, b = B.rgb;
+        // a pixel has data if it is not transparent (WebP frames) and not black (older PNG frames)
+        float va = step(0.5, A.a) * step(uThr, max(max(a.r, a.g), a.b));
+        float vb = step(0.5, B.a) * step(uThr, max(max(b.r, b.g), b.b));
+        vec3 base = vec3(0.04, 0.06, 0.10);
+        if (uHasBase > 0.5 && uShowBase > 0.5) base = texture2D(uBase, vUv).rgb * 0.6;
+        vec3 temp = vec3(0.0);
+        float alpha = 0.0;
+        if (va > 0.5 && vb > 0.5) { temp = mix(a, b, uF); alpha = 1.0; }
+        else if (va > 0.5) { temp = a; alpha = 1.0 - uF; }
+        else if (vb > 0.5) { temp = b; alpha = uF; }
+        vec3 col = mix(base, temp, alpha * uOpacity);
+        if (uHasCoast > 0.5 && uCoastOn > 0.5) {
+          float ca = texture2D(uCoast, vUv).a;
+          col = mix(col, vec3(0.80, 0.92, 1.0), clamp(ca, 0.0, 1.0) * 0.9);
+        }
+        if (uHasBorders > 0.5 && uBordersOn > 0.5) {
+          float ba = texture2D(uBorders, vUv).a;
+          col = mix(col, vec3(0.93), clamp(ba, 0.0, 1.0) * 0.9);
+        }
+        float light = 0.6 + 0.4 * max(dot(normalize(vNormal), normalize(vec3(0.4, 0.5, 0.8))), 0.0);
+        gl_FragColor = vec4(col * light, 1.0);
+      }`,
+  })
+);
+scene.add(globe);
+
+// ---------- emotion glow: a soft atmosphere whose colour follows the mood of the music ----------
+const EMO_COLOR = { Serene: "#7fd6ff", Joyful: "#ffd36b", Triumphant: "#ff9a1a",
+                    Melancholy: "#8a8fff", Tense: "#ff6b9a", Urgent: "#ff3b3b" };
+const atmoU = { uColor: { value: new THREE.Color("#7fd6ff") }, uI: { value: 0.6 } };
+const atmo = new THREE.Mesh(
+  new THREE.SphereGeometry(1.1, 96, 48),
+  new THREE.ShaderMaterial({
+    uniforms: atmoU, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uI; varying vec3 vN; varying vec3 vV;
+      void main() {
+        float f = pow(clamp(-dot(vN, vV) / 0.42, 0.0, 1.0), 2.2);
+        gl_FragColor = vec4(uColor * f * uI, 1.0);
+      }`,
+  })
+);
+scene.add(atmo);
+const emoTarget = new THREE.Color("#7fd6ff");
+
+// ---------- audio = the master clock ----------
+const audio = new Audio(DATA + (TL.music || "music.wav") + "?v=" + TL.version);   // music.mp3 when available
+audio.loop = true;
+audio.addEventListener("error", () => {                     // music missing or unreadable: log it
+  if (window.emoReport) emoReport("audio", "music failed to load (code " + (audio.error ? audio.error.code : "?") + ")",
+                                  { src: audio.src, layer: LAYER });
+});
+audio.preload = "auto";
+// after a "new data" refresh, come back to roughly where we were (paused, because browsers need a click to play)
+try {
+  const resume = sessionStorage.getItem("resumeT");
+  if (resume) {
+    sessionStorage.removeItem("resumeT");
+    audio.addEventListener("loadedmetadata", () => {
+      audio.currentTime = Math.min(parseFloat(resume), TL.total - 0.5);
+    }, { once: true });
+  }
+} catch (e) {}
+
+function locate(t) {
+  let lo = 0, hi = N - 1;
+  while (lo < hi) {
+    const m = (lo + hi + 1) >> 1;
+    if (TL.onset[m] <= t) lo = m; else hi = m - 1;
+  }
+  return lo;
+}
+
+function dynMark(x) {
+  const m = [[0.3, "pp"], [0.45, "p"], [0.6, "mp"], [0.75, "mf"], [0.9, "f"]];
+  for (const [lim, name] of m) if (x < lim) return name;
+  return "ff";
+}
+
+// ---------- UI ----------
+const seek = $("seek");
+seek.max = TL.total;
+let dragging = false;
+seek.addEventListener("input", () => { dragging = true; audio.currentTime = parseFloat(seek.value); });
+seek.addEventListener("change", () => { dragging = false; });
+
+function startMusic() {
+  audio.play().catch(e => { $("music").textContent = "Click Play again to allow sound"; });
+}
+function togglePlay() {
+  if (introPending) { stopNarration(); startMusic(); return; }      // pressing play during the intro skips it
+  if (audio.paused) {
+    if ($("narron").checked && audio.currentTime < 0.5) {
+      introPending = true;                                          // from the start: narration first, then music
+      $("play").textContent = "⏭"; $("play").setAttribute("aria-label", "Skip narration and start music");
+      speakNarration(() => { introPending = false; startMusic(); }, false);
+    } else startMusic();
+  } else audio.pause();
+}
+
+// ---------- narration: spoken description for blind and low-vision listeners ----------
+// Tries, in order: the recorded narration.wav, the narration text read by the browser's voice,
+// and finally a description built here from timeline.json. So it works even if nothing was generated.
+let NARR = null, narrAudio = null, narrating = false, introPending = false, narrToken = 0;
+fetch(DATA + "narration.json?" + Date.now()).then(r => r.ok ? r.json() : null).then(j => { NARR = j; }).catch(() => {});
+try { $("narron").checked = localStorage.getItem("narrationFirst") === "1"; } catch (e) {}   // off by default; remembers "on" if the listener ticks it
+$("narron").addEventListener("change", e => { try { localStorage.setItem("narrationFirst", e.target.checked ? "1" : "0"); } catch (err) {} });
+
+function localDescription() {
+  const c = k => Math.round(k - 273.15), deg = v => (v < 0 ? "minus " : "") + Math.abs(v) + " degrees";
+  const d = s => new Date(s + "T00:00:00"), mon = s => d(s).toLocaleString("en-GB", { month: "long" });
+  const day = s => d(s).getDate() + " " + mon(s);
+  const D = TL.dates, tn = TL.tn, ts = TL.ts;
+  const iN = tn.indexOf(Math.max(...tn)), iS = ts.indexOf(Math.min(...ts));
+  let t;
+  if (LAYER === "co2") {
+    const top = (arr, ppm) => { let j = 0; arr.forEach((x, q) => { if (x > arr[j]) j = q; }); return [j, ppm[j]]; };
+    const [jn, pnn] = top(tn, TL.pn || []), [js, pss] = top(ts, TL.ps || []);
+    t = "EmoEarth carbon dioxide layer: carbon dioxide in the air from a NASA weather and climate model, every six hours from " +
+      day(D[0]) + " to " + day(D[D.length - 1]) + " 2020. Only the highest concentrations show, as tan, orange and red clouds " +
+      "drifting with the wind; below about 425 parts per million the air is see-through. In the north the plumes cover the most " +
+      "of the map around " + day(D[jn]) + (pnn ? ", reaching about " + Math.round(pnn) + " parts per million" : "") +
+      ". In the south they peak around " + day(D[js]) + (pss ? ", at about " + Math.round(pss) + " parts per million" : "") +
+      ". When the carbon dioxide rises the music turns to a minor key and grows louder.";
+  } else if (LAYER === "ocean") {
+    const iNw = tn.indexOf(Math.max(...tn)), iSw = ts.indexOf(Math.max(...ts));
+    t = "EmoEarth ocean layer: sea surface currents, coloured by temperature, from a NASA ocean model, " + day(D[0]) + " " +
+      D[0].slice(0, 4) + " to " + day(D[D.length - 1]) + " " + D[D.length - 1].slice(0, 4) + ". Blue lines are cold water near 0 degrees, " +
+      "green is 10 to 20 degrees, yellow about 25, red the warmest near 32. The northern seas average about " + deg(c(tn[0])) +
+      ", are warmest in " + mon(D[iNw]) + " at about " + deg(c(tn[iNw])) + ". The southern seas are warmest in " + mon(D[iSw]) +
+      ", at about " + deg(c(ts[iSw])) + ".";
+  } else
+  t = "EmoEarth, from " + day(D[0]) + " to " + day(D[D.length - 1]) + " " + D[D.length - 1].slice(0, 4) + ". " +
+    "In the north, the frozen surface goes from about " + deg(c(tn[0])) + ", warms to " + deg(c(tn[iN])) + " in " + mon(D[iN]) +
+    ", and ends near " + deg(c(tn[tn.length - 1])) + ". The south moves the other way, from " + deg(c(ts[0])) + " down to " +
+    deg(c(ts[iS])) + " in " + mon(D[iS]) + ", then back to " + deg(c(ts[ts.length - 1])) + ".";
+  if (Array.isArray(TL.emotion)) {
+    const count = {}; TL.emotion.forEach(e => count[e] = (count[e] || 0) + 1);
+    const top = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    t += " The orchestra feels mostly " + top.toLowerCase() + ", and changes between major and minor keys " +
+         (TL.key_change || []).filter(Boolean).length + " times.";
+  }
+  return t;
+}
+function narrationText() { return (NARR && NARR.text) || localDescription(); }
+
+function speakNarration(onDone, duck) {
+  stopNarration(true);
+  const token = ++narrToken, text = narrationText();
+  narrating = true;
+  $("captext").textContent = text; $("caption").style.display = "block";
+  $("describe").setAttribute("aria-pressed", "true");
+  if (duck) setMusicLevel(0.15);                                    // music keeps playing quietly underneath
+  const finish = () => {
+    if (token !== narrToken || !narrating) return;
+    narrating = false;
+    $("caption").style.display = "none";
+    $("describe").setAttribute("aria-pressed", "false");
+    setMusicLevel(1);
+    if (onDone) onDone();
+  };
+  const viaSpeech = () => {
+    if (token !== narrToken) return;
+    if ("speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      // one sentence at a time: some browsers stop long utterances part way through
+      const parts = text.match(/[^.!?]+[.!?]*/g) || [text];
+      parts.forEach((p, k) => {
+        const u = new SpeechSynthesisUtterance(p.trim());
+        u.rate = 0.95; u.lang = "en-GB";
+        if (k === parts.length - 1) { u.onend = finish; u.onerror = finish; }
+        speechSynthesis.speak(u);
+      });
+    } else {
+      setTimeout(finish, Math.min(30000, text.split(/\s+/).length * 380));   // caption only
+    }
+  };
+  if (NARR && NARR.audio) {
+    narrAudio = new Audio(DATA + NARR.audio + "?v=" + encodeURIComponent(NARR.generated_at || ""));
+    narrAudio.onended = finish;
+    narrAudio.onerror = viaSpeech;                                  // audio missing or broken: speak the text
+    narrAudio.play().catch(viaSpeech);
+  } else {
+    viaSpeech();
+  }
+}
+function stopNarration(silent) {
+  narrToken++;
+  if (narrAudio) { narrAudio.onended = narrAudio.onerror = null; narrAudio.pause(); narrAudio = null; }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (narrating && !silent) { $("caption").style.display = "none"; $("describe").setAttribute("aria-pressed", "false"); }
+  narrating = false; introPending = false;
+  setMusicLevel(1);
+  if (audio.paused) { $("play").textContent = "▶"; $("play").setAttribute("aria-label", "Play"); }
+}
+$("describe").addEventListener("click", () => {
+  if (narrating) { stopNarration(); return; }
+  speakNarration(null, !audio.paused);
+});
+audio.addEventListener("play", () => { $("play").textContent = "⏸"; $("play").setAttribute("aria-label", "Pause"); startAnalyser(); });
+
+// ---------- sound wave: a live oscilloscope of the music, coloured by the current emotion ----------
+let analyser = null, waveBuf = null, actx = null;
+let musicGain = null, musicLevel = 1;
+function setMusicLevel(v) {
+  musicLevel = v;
+  if (musicGain && actx) musicGain.gain.setTargetAtTime(v, actx.currentTime, 0.25);
+  else audio.volume = v;
+}
+function startAnalyser() {
+  try {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = actx.createMediaElementSource(audio);   // the music now plays through the analyser
+      analyser = actx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.6;
+      analyser.minDecibels = -85;                          // wider range so loud and quiet bands look different
+      analyser.maxDecibels = -10;
+      musicGain = actx.createGain();                      // turned down while the narration speaks
+      musicGain.gain.value = musicLevel;
+      src.connect(musicGain);
+      musicGain.connect(analyser);
+      analyser.connect(actx.destination);
+      waveBuf = new Uint8Array(analyser.fftSize);
+    }
+    if (actx.state === "suspended") actx.resume();
+  } catch (e) { console.warn("Sound wave unavailable:", e); }
+}
+const wave = $("wave"), wctx = wave.getContext("2d");
+// how quickly the bars follow the music (lower = slower, smoother movement)
+const waveSpeed = 0.3;
+let idlePhase = 0, lastWaveT = performance.now();
+// equalizer bars: the analyser splits the sound into frequency bands (bass on the left, treble on the right)
+// drawn mirrored around a centre line, coloured along the temperature colour bar and tinted by the mood,
+// with sparkles that float up from bands hitting a strong peak
+const EQ_BARS = 28, EQ_LO = 40, EQ_HI = 12000;          // log-spaced bands from 40 Hz to 12 kHz
+const eqLevel = new Float32Array(EQ_BARS), eqPeak = new Float32Array(EQ_BARS);
+const sparks = [];
+let freqBuf = null;
+const BAR_COLORS = (() => {
+  const stops = PALETTES[LAYER].map(h => new THREE.Color(h));
+  const out = [];
+  for (let k = 0; k < EQ_BARS; k++) {
+    const p = k / (EQ_BARS - 1) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(p));
+    out.push(stops[i].clone().lerp(stops[i + 1], p - i));
+  }
+  return out;
+})();
+const moodCol = new THREE.Color(), barCol = new THREE.Color();
+function roundBar(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  wctx.beginPath();
+  wctx.moveTo(x + r, y); wctx.lineTo(x + w - r, y); wctx.arcTo(x + w, y, x + w, y + r, r);
+  wctx.lineTo(x + w, y + h - r); wctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  wctx.lineTo(x + r, y + h); wctx.arcTo(x, y + h, x, y + h - r, r);
+  wctx.lineTo(x, y + r); wctx.arcTo(x, y, x + r, y, r);
+  wctx.fill();
+}
+function drawWave(color) {
+  const W = wave.width, H = wave.height, mid = H * 0.58;   // centre line a little low: tall top, short reflection
+  wctx.clearRect(0, 0, W, H);
+  const live = analyser && !audio.paused;
+  if (live) {
+    if (!freqBuf) freqBuf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freqBuf);
+  }
+  const now = performance.now(), dt = Math.min(0.1, (now - lastWaveT) / 1000);
+  lastWaveT = now;
+  idlePhase += dt * 2 * waveSpeed * 3;
+  const follow = 1 - Math.pow(1 - Math.min(waveSpeed, 0.999), dt * 60);
+  const gap = 4, bw = (W - gap * (EQ_BARS - 1)) / EQ_BARS;
+  const binHz = live ? actx.sampleRate / 2 / freqBuf.length : 1;
+  moodCol.set(color);
+
+  // soft mood glow along the centre line
+  const glow = wctx.createLinearGradient(0, mid - 14, 0, mid + 14);
+  glow.addColorStop(0, "rgba(0,0,0,0)"); glow.addColorStop(0.5, color + "33"); glow.addColorStop(1, "rgba(0,0,0,0)");
+  wctx.fillStyle = glow; wctx.fillRect(0, mid - 14, W, 28);
+
+  for (let k = 0; k < EQ_BARS; k++) {
+    let target;
+    if (live) {
+      const f0 = EQ_LO * Math.pow(EQ_HI / EQ_LO, k / EQ_BARS), f1 = EQ_LO * Math.pow(EQ_HI / EQ_LO, (k + 1) / EQ_BARS);
+      const i0 = Math.floor(f0 / binHz), i1 = Math.max(i0 + 1, Math.ceil(f1 / binHz));
+      let sum = 0;
+      for (let i = i0; i < i1 && i < freqBuf.length; i++) sum += freqBuf[i];
+      target = Math.pow(sum / (i1 - i0) / 255, 1.5);
+    } else {
+      target = 0.07 + 0.05 * Math.sin(k * 0.45 + idlePhase);   // calm idle shimmer while paused
+    }
+    eqLevel[k] += (target - eqLevel[k]) * follow;
+    const rising = eqLevel[k] > eqPeak[k] + 0.02;
+    eqPeak[k] = Math.max(eqLevel[k], eqPeak[k] - dt * 0.35);
+    // a strong, rising band throws a sparkle
+    if (live && rising && eqLevel[k] > 0.55 && Math.random() < 0.35 && sparks.length < 80) {
+      sparks.push({ x: k * (bw + gap) + bw / 2, y: mid - eqLevel[k] * mid, vy: -(20 + Math.random() * 30),
+                    vx: (Math.random() - 0.5) * 12, life: 1, k });
+    }
+
+    barCol.copy(BAR_COLORS[k]).lerp(moodCol, 0.35);
+    const c = "#" + barCol.getHexString();
+    const x = k * (bw + gap), up = Math.max(2, eqLevel[k] * mid), down = up * 0.45;
+    const g = wctx.createLinearGradient(0, mid - up, 0, mid + down);
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(0.25, c);
+    g.addColorStop(0.58, c);
+    g.addColorStop(1, "rgba(0,0,0,0)");                     // reflection fades out
+    wctx.fillStyle = g;
+    wctx.shadowColor = c; wctx.shadowBlur = 10;
+    roundBar(x, mid - up, bw, up + down, bw / 2);
+    wctx.shadowBlur = 0;
+    // floating peak dot
+    wctx.fillStyle = "rgba(255,255,255,0.9)";
+    wctx.beginPath(); wctx.arc(x + bw / 2, mid - Math.max(3, eqPeak[k] * mid) - 4, bw * 0.28, 0, Math.PI * 2); wctx.fill();
+  }
+
+  // sparkles drift up and fade
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.2;
+    if (p.life <= 0 || p.y < 0) { sparks.splice(i, 1); continue; }
+    barCol.copy(BAR_COLORS[p.k]).lerp(moodCol, 0.35);
+    wctx.fillStyle = "#" + barCol.getHexString();
+    wctx.globalAlpha = p.life;
+    wctx.beginPath(); wctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2); wctx.fill();
+    wctx.globalAlpha = 1;
+  }
+}
+audio.addEventListener("pause", () => { $("play").textContent = "▶"; $("play").setAttribute("aria-label", "Play"); });
+$("play").addEventListener("click", togglePlay);
+// ---------- layer hotkeys: Z ice surface, X ocean currents, C carbon dioxide (spoken, for blind listeners) ----------
+const LAYER_KEYS = { z: "ice", x: "ocean", c: "co2" };
+const LAYER_NAMES = { ice: "Ice surface temperature", ocean: "Ocean currents and sea temperature", co2: "Carbon dioxide" };
+function speakShort(text) {                                     // screen readers read #sr; everyone else hears the voice
+  $("sr").textContent = text;
+  try {
+    if (window.speechSynthesis && !narrating) {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.rate = 1.05;
+      speechSynthesis.speak(u);
+    }
+  } catch (err) {}
+}
+function switchLayer(key) {
+  const name = LAYER_NAMES[key];
+  if (key === LAYER) { speakShort("Already on " + name + "."); return; }
+  const opt = document.querySelector('#layer option[value="' + key + '"]');
+  if (opt && opt.disabled) { speakShort(name + " is not available yet."); return; }
+  speakShort("Switching to " + name + ".");
+  try { localStorage.setItem("layer", key); sessionStorage.setItem("layerAnnounce", "1"); } catch (err) {}
+  const u = new URL(location.href); u.searchParams.set("layer", key);
+  setTimeout(() => { location.href = u.toString(); }, 1400);    // let the sentence finish before the page reloads
+}
+try {                                                           // after a hotkey switch: say where we are now
+  if (sessionStorage.getItem("layerAnnounce")) {
+    sessionStorage.removeItem("layerAnnounce");
+    setTimeout(() => speakShort(LAYER_NAMES[LAYER] + " layer, " + TL.first_date.slice(0, 4) +
+      ". Press Space to play, D to hear the description."), 1200);
+  }
+} catch (err) {}
+
+window.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("input, button")) { if (e.code === "Space") return; }
+  const k = (e.key || "").toLowerCase();
+  if (LAYER_KEYS[k] && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat &&
+      !(e.target.closest && e.target.closest("textarea, select, input[type=text], input[type=email], input[type=search]"))) {
+    e.preventDefault(); switchLayer(LAYER_KEYS[k]); return;
+  }
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "d" || e.key === "D") { $("describe").click(); }
+  else if (e.key === "Escape" && narrating) { stopNarration(); }
+});
+
+$("spin").addEventListener("change", e => { controls.autoRotate = e.target.checked; });
+$("base").addEventListener("change", e => { uniforms.uShowBase.value = e.target.checked ? 1 : 0; });
+$("borders").addEventListener("change", e => { uniforms.uBordersOn.value = e.target.checked ? 1 : 0; });
+$("coast").addEventListener("change", e => { uniforms.uCoastOn.value = e.target.checked ? 1 : 0; });
+// start with whatever the checkboxes say (defaults: auto-rotate and coastlines on, base map and borders off)
+controls.autoRotate = $("spin").checked;
+uniforms.uShowBase.value = $("base").checked ? 1 : 0;
+uniforms.uBordersOn.value = $("borders").checked ? 1 : 0;
+uniforms.uCoastOn.value = $("coast").checked ? 1 : 0;
+$("opacity").addEventListener("input", e => { uniforms.uOpacity.value = parseFloat(e.target.value); });
+if (!TL.has_base) { $("base").parentElement.style.display = "none"; }
+
+function view(x, y, z) { camera.position.set(x, y, z); controls.target.set(0, 0, 0); controls.update(); }
+$("north").addEventListener("click", () => view(0.0, 2.7, 0.35));
+$("south").addEventListener("click", () => view(0.0, -2.7, 0.35));
+$("equator").addEventListener("click", () => view(0.0, 0.0, 2.8));
+
+// sparkline of the two hemispheres' temperatures with a playhead
+const spark = $("spark");
+let sctx = spark.getContext("2d");
+const allT = TL.tn.concat(TL.ts);
+const tLo = Math.min(...allT), tHi = Math.max(...allT);
+let sparkBg = null, lastPx = -1;
+function drawSpark(t) {
+  const W = spark.width, H = spark.height;
+  if (!sparkBg) {                                   // the two temperature lines never change: draw them once
+    sparkBg = document.createElement("canvas"); sparkBg.width = W; sparkBg.height = H;
+    const real = sctx; sctx = sparkBg.getContext("2d");
+    drawSparkLines(W, H);
+    sctx = real;
+  }
+  const px = Math.round((t / TL.total) * W);
+  if (px === lastPx) return;                        // playhead has not moved a whole pixel: nothing to redraw
+  lastPx = px;
+  sctx.clearRect(0, 0, W, H);
+  sctx.drawImage(sparkBg, 0, 0);
+  sctx.strokeStyle = "#fff"; sctx.lineWidth = 2;
+  sctx.beginPath(); sctx.moveTo(px, 0); sctx.lineTo(px, H); sctx.stroke();
+}
+function drawSparkLines(W, H) {
+  const line = (arr, color) => {
+    sctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const x = (TL.onset[i] / TL.total) * W;
+      const y = H - 6 - ((arr[i] - tLo) / (tHi - tLo + 1e-9)) * (H - 12);
+      i ? sctx.lineTo(x, y) : sctx.moveTo(x, y);
+    }
+    sctx.strokeStyle = color; sctx.lineWidth = 2; sctx.stroke();
+  };
+  line(TL.tn, "#ff9a1a");
+  line(TL.ts, "#2ec8ff");
+  sctx.font = "20px sans-serif";
+  sctx.fillStyle = "#ff9a1a"; sctx.fillText("North", 6, 20);
+  sctx.fillStyle = "#2ec8ff"; sctx.fillText("South", 80, 20);
+}
+
+// ---------- orchestra mixer (one row per colour band / section) ----------
+const HAS_ORCH = Array.isArray(TL.inst) && Array.isArray(TL.instruments);
+const STOP_COLORS = PALETTES[LAYER];
+const levelBars = [];
+if (HAS_ORCH) {
+  TL.instruments.forEach((name, b) => {
+    const row = document.createElement("div");
+    row.className = "ins";
+    row.innerHTML = '<span class="dot" style="background:' + STOP_COLORS[b] + '"></span><span class="nm">' + name +
+                    '</span><span class="lv"><i style="background:' + STOP_COLORS[b] + '"></i></span>';
+    $("orch").appendChild(row);
+    levelBars.push(row.querySelector("i"));
+  });
+} else {
+  $("orch").style.display = "none";
+}
+
+// ---------- render loop ----------
+let lastI = -1, lastTxt = "", lastEmo = "", waveColor = "#7fd6ff";
+// cached values so the page text and bars are only rewritten when they actually change
+let lastRender = 0, lastFrameI = -1, lastFrameF = -1, lastTempI = -1, lastSeek = -1, lastWaveDraw = 0, lastInteract = performance.now(), needRender = true;
+const lastLevel = [], textCache = {};
+function setText(id, v) { if (textCache[id] !== v) { textCache[id] = v; $(id).textContent = v; } }
+controls.addEventListener("change", () => { needRender = true; });
+for (const ev of ["pointerdown", "pointermove", "wheel", "keydown"]) window.addEventListener(ev, () => { lastInteract = performance.now(); needRender = true; }, { passive: true });
+window.addEventListener("resize", () => { needRender = true; });
+document.addEventListener("change", () => { needRender = true; });
+document.addEventListener("input", () => { needRender = true; });
+let srMonth = "", srEmo = "", srKey = "", srLast = 0;
+function frame() {
+  requestAnimationFrame(frame);
+  controls.update();
+
+  const t = clamp(audio.currentTime + AUDIO_OFFSET, 0, TL.total - 1e-3);
+  const i = locate(t);
+  const j = Math.min(i + 1, N - 1);
+  const f = i >= N - 1 ? 0 : clamp((t - TL.onset[i]) / TL.beat[i], 0, 1);
+
+  for (let k = i; k <= Math.min(i + 4, N - 1); k++) getTex(k);
+  const ta = getTex(i), tb = getTex(j);
+  if (ta) uniforms.uA.value = ta;
+  if (tb) uniforms.uB.value = tb;
+  uniforms.uF.value = f;
+  prune(i, i + 4);
+
+  if (i !== lastI) {
+    lastI = i;
+  }
+  const k = f < 0.5 ? i : j;
+  setText("date", TL.dates[k] + (TL.times ? "  " + TL.times[k] : ""));
+  const trend = TL.net[i] > 0.05 ? "crescendo \u25B2" : (TL.net[i] < -0.05 ? "decrescendo \u25BC" : "steady");
+  const txt = (TL.major[i] ? "C major" : "C minor") + "  \u00B7  " + Math.round(TL.bpm[i]) + " BPM  \u00B7  " + dynMark(TL.vol[i]) + "  \u00B7  " + trend;
+  if (txt !== lastTxt) {
+    const keyChanged = lastTxt && lastTxt.slice(0, 7) !== txt.slice(0, 7);
+    $("music").textContent = txt; lastTxt = txt;
+    if (keyChanged) { $("music").classList.remove("flash"); void $("music").offsetWidth; $("music").classList.add("flash"); }
+  }
+  // screen readers: a short spoken update when the month, the mood or the key changes (only while playing)
+  if (!audio.paused && !narrating) {
+    const d = new Date(TL.dates[k] + "T00:00:00");
+    const month = d.toLocaleString("en-GB", { month: "long" });
+    const say = [];
+    if (month !== srMonth) say.push(month);
+    if (HAS_ORCH && TL.emotion[i] !== srEmo) say.push("feeling " + TL.emotion[i].toLowerCase());
+    const key = TL.major[i] ? "C major" : "C minor";
+    if (key !== srKey) say.push(key);
+    if (say.length && performance.now() - srLast > 4000) {
+      $("sr").textContent = say.join(", ") + ".";
+      srMonth = month; srEmo = HAS_ORCH ? TL.emotion[i] : ""; srKey = key; srLast = performance.now();
+    }
+  }
+  if (HAS_ORCH) {
+    const emo = TL.emotion[i];
+    if (emo !== lastEmo) {
+      lastEmo = emo;
+      const col = EMO_COLOR[emo] || "#7fd6ff";
+      $("emotion").innerHTML = "<small>Feeling</small>" + emo;
+      $("emotion").style.color = col;
+      $("info").style.boxShadow = "0 0 28px " + col + "40";
+      emoTarget.set(col);
+      waveColor = col;
+    }
+    const lv = TL.inst[i], lv2 = TL.inst[j];
+    for (let b = 0; b < levelBars.length; b++) {
+      const w = Math.round((lv[b] * (1 - f) + lv2[b] * f) * 100);
+      if (w !== lastLevel[b]) { lastLevel[b] = w; levelBars[b].style.width = w + "%"; }
+    }
+  }
+  atmoU.uColor.value.lerp(emoTarget, 0.04);
+  atmoU.uI.value = 0.35 + 0.75 * (audio.paused ? 0.4 : TL.vol[i]);
+  if (i !== lastTempI) {
+    lastTempI = i;
+    const c = x => Math.round(x - 273.15);
+    if (LAYER === "co2") {
+      const pp = v => (v == null ? "" : ", plumes \u2248 " + Math.round(v) + " ppm");
+      $("temps").innerHTML = "North: high-CO\u2082 plumes over " + TL.tn[i].toFixed(1) + "% of the map" + pp((TL.pn || [])[i]) +
+        "<br>South: " + TL.ts[i].toFixed(1) + "%" + pp((TL.ps || [])[i]) + "<br>approximate, estimated from the plume colours";
+    } else if (LAYER === "ocean") {
+      const cc = x => (x - 273.15).toFixed(1);
+      $("temps").innerHTML = "Northern seas \u2248 " + cc(TL.tn[i]) + " \u00B0C<br>Southern seas \u2248 " + cc(TL.ts[i]) + " \u00B0C<br>approximate, estimated from the current colours";
+    } else
+    $("temps").innerHTML = "North \u2248 " + TL.tn[i].toFixed(1) + " K (" + c(TL.tn[i]) + " \u00B0C)<br>South \u2248 " + TL.ts[i].toFixed(1) + " K (" + c(TL.ts[i]) + " \u00B0C)<br>approximate, estimated from image colors";
+  }
+  const tq = Math.round(t * 20) / 20;
+  if (!dragging && tq !== lastSeek) { lastSeek = tq; seek.value = tq; }
+  setText("time", fmt(t) + " / " + fmt(TL.total));
+  drawSpark(t);
+
+  // idle: paused, not auto-rotating, nobody touching the globe and the mood glow has settled -> skip work
+  const now = performance.now();
+  const g = atmoU.uColor.value, glowSettled = Math.abs(g.r - emoTarget.r) + Math.abs(g.g - emoTarget.g) + Math.abs(g.b - emoTarget.b) < 0.003;
+  if (i !== lastFrameI || f !== lastFrameF) { lastFrameI = i; lastFrameF = f; needRender = true; }   // seeking while paused
+  const idle = audio.paused && !controls.autoRotate && !narrating && glowSettled && now - lastInteract > 1000;
+  if (!idle || now - lastWaveDraw > 66) { lastWaveDraw = now; drawWave(waveColor); }   // paused shimmer at ~15 fps
+  if (!idle || needRender || now - lastRender > 1000) { renderer.render(scene, camera); needRender = false; lastRender = now; }
+}
+// ---------- live data: show freshness, watch for new data ----------
+$("fresh").textContent = TL.fixed
+  ? "Model run " + TL.first_date + " to " + TL.latest_date + " \u00B7 fixed set, no new data"
+  : "Latest data: " + TL.latest_date + " \u00B7 built " + TL.built_at.replace("T", " ");
+if (TL.fixed) $("check").style.display = "none";
+
+async function pollStatus() {
+  try {
+    const s = await (await fetch("/api/status?" + Date.now())).json();
+    $("check").disabled = !!s.updating;
+    $("check").textContent = s.updating ? "Updating ..." : "Check for new data";
+    $("fresh").title = s.message || "";
+    if (s.updating && s.message) {
+      $("fresh").textContent = s.message;
+    } else {
+      $("fresh").textContent = "Latest data: " + (s.latest_date || TL.latest_date) +
+        (s.last_check ? " \u00B7 checked " + s.last_check.replace("T", " ") : " \u00B7 built " + TL.built_at.replace("T", " "));
+    }
+    if (s.version && s.version !== TL.version) {
+      $("badge").style.display = "block";
+      $("badge").textContent = "New data through " + s.latest_date + " \u2013 click to refresh";
+    }
+  } catch (e) { /* server busy or offline: try again later */ }
+}
+$("check").addEventListener("click", async () => {
+  $("check").disabled = true;
+  try { await fetch("/api/update", { method: "POST" }); } catch (e) {}
+  pollStatus();
+});
+$("badge").addEventListener("click", () => {
+  try { sessionStorage.setItem("resumeT", String(audio.currentTime)); } catch (e) {}
+  location.reload();
+});
+if (!TL.fixed) { setInterval(pollStatus, 15000); pollStatus(); }   // only the ice layer gets new days
+
+// ---------- slide the Earth sideways: right-drag or Shift+drag, double-click to re-centre ----------
+{
+  let sliding = false, lastX = 0, pid = null;
+  canvas.addEventListener("pointerdown", e => {
+    if (e.button === 2 || (e.button === 0 && e.shiftKey)) {
+      sliding = true; lastX = e.clientX; pid = e.pointerId;
+      controls.enabled = false;                       // don't rotate while sliding
+      document.body.classList.add("panning");
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault(); e.stopImmediatePropagation();
+    }
+  }, { capture: true });
+  canvas.addEventListener("pointermove", e => {
+    if (!sliding || e.pointerId !== pid) return;
+    slideX += e.clientX - lastX; lastX = e.clientX;
+    applySlide();
+  });
+  const stop = e => {
+    if (!sliding || e.pointerId !== pid) return;
+    sliding = false; controls.enabled = true;
+    document.body.classList.remove("panning");
+  };
+  canvas.addEventListener("pointerup", stop);
+  canvas.addEventListener("pointercancel", stop);
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  canvas.addEventListener("dblclick", () => { slideX = 0; applySlide(); });
+}
+
+// ---------- minimise buttons on the panels (remembered in this browser) ----------
+for (const id of ["info", "legend", "bar"]) {
+  const p = $(id), b = document.createElement("button");
+  b.className = "minbtn";
+  const set = m => {
+    p.classList.toggle("min", m);
+    b.textContent = m ? "+" : "\u2013";
+    b.title = m ? "Expand" : "Minimise";
+    try { localStorage.setItem("min_" + id, m ? "1" : "0"); } catch (e) {}
+  };
+  b.addEventListener("click", e => { e.stopPropagation(); set(!p.classList.contains("min")); });
+  p.appendChild(b);
+  let saved = false;
+  try { saved = localStorage.getItem("min_" + id) === "1"; } catch (e) {}
+  set(saved);
+}
+
+// ---------- move the panels: drag a panel anywhere except its buttons and sliders ----------
+// double-click a panel's empty area to put it back where it started. Positions are remembered by the browser.
+for (const id of ["info", "legend", "bar", "where"]) {
+  const p = $(id);
+  const place = (x, y) => {
+    const r = p.getBoundingClientRect();
+    x = clamp(x, 0, Math.max(0, window.innerWidth - r.width));
+    y = clamp(y, 0, Math.max(0, window.innerHeight - r.height));
+    Object.assign(p.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto", transform: "none" });
+    return [x, y];
+  };
+  try {
+    const pos = JSON.parse(localStorage.getItem("pos2_" + id) || "null");
+    if (pos) place(pos[0], pos[1]);
+  } catch (e) {}
+  let drag = null;
+  p.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || e.target.closest("button, input, label, a, select")) return;
+    const r = p.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
+    place(r.left, r.top);
+    p.classList.add("dragging");
+    try { p.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  p.addEventListener("pointermove", e => {
+    if (drag && e.pointerId === drag.id) place(e.clientX - drag.dx, e.clientY - drag.dy);
+  });
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag = null;
+    p.classList.remove("dragging");
+    const r = p.getBoundingClientRect();
+    try { localStorage.setItem("pos2_" + id, JSON.stringify([r.left, r.top])); } catch (err) {}
+  };
+  p.addEventListener("pointerup", end);
+  p.addEventListener("pointercancel", end);
+  p.addEventListener("dblclick", e => {
+    if (e.target.closest("button, input, label")) return;
+    Object.assign(p.style, { left: "", top: "", right: "", bottom: "", transform: "" });
+    try { localStorage.removeItem("pos2_" + id); } catch (err) {}
+  });
+}
+// keep moved panels on screen when the window gets smaller
+window.addEventListener("resize", () => {
+  for (const id of ["info", "legend", "bar", "where"]) {
+    const p = $(id);
+    if (!p.style.left) continue;
+    const r = p.getBoundingClientRect();
+    p.style.left = clamp(r.left, 0, Math.max(0, window.innerWidth - r.width)) + "px";
+    p.style.top = clamp(r.top, 0, Math.max(0, window.innerHeight - r.height)) + "px";
+  }
+});
+
+// ---------- local time, time zone and country (of this computer) ----------
+{
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const offset = () => {
+    const m = -new Date().getTimezoneOffset(), a = Math.abs(m);
+    return "UTC" + (m >= 0 ? "+" : "\u2212") + String(Math.floor(a / 60)).padStart(2, "0") + ":" + String(a % 60).padStart(2, "0");
+  };
+  const regionName = code => {
+    try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code); } catch (e) { return code; }
+  };
+  let country = "";
+  const setPlace = c => { if (c !== undefined) country = c; $("place").textContent = (country ? country + " \u00B7 " : "") + offset() + " \u00B7 " + tz.replace(/_/g, " "); };
+  // country from the time zone (table generated from the IANA zone.tab)
+  const TZ_COUNTRY = {"Europe/Andorra":"AD","Asia/Dubai":"AE","Asia/Kabul":"AF","America/Antigua":"AG","America/Anguilla":"AI","Europe/Tirane":"AL","Asia/Yerevan":"AM","Africa/Luanda":"AO","Antarctica/McMurdo":"AQ","Antarctica/Casey":"AQ","Antarctica/Davis":"AQ","Antarctica/DumontDUrville":"AQ","Antarctica/Mawson":"AQ","Antarctica/Palmer":"AQ","Antarctica/Rothera":"AQ","Antarctica/Syowa":"AQ","Antarctica/Troll":"AQ","Antarctica/Vostok":"AQ","America/Argentina/Buenos_Aires":"AR","America/Argentina/Cordoba":"AR","America/Argentina/Salta":"AR","America/Argentina/Jujuy":"AR","America/Argentina/Tucuman":"AR","America/Argentina/Catamarca":"AR","America/Argentina/La_Rioja":"AR","America/Argentina/San_Juan":"AR","America/Argentina/Mendoza":"AR","America/Argentina/San_Luis":"AR","America/Argentina/Rio_Gallegos":"AR","America/Argentina/Ushuaia":"AR","Pacific/Pago_Pago":"AS","Europe/Vienna":"AT","Australia/Lord_Howe":"AU","Antarctica/Macquarie":"AU","Australia/Hobart":"AU","Australia/Melbourne":"AU","Australia/Sydney":"AU","Australia/Broken_Hill":"AU","Australia/Brisbane":"AU","Australia/Lindeman":"AU","Australia/Adelaide":"AU","Australia/Darwin":"AU","Australia/Perth":"AU","Australia/Eucla":"AU","America/Aruba":"AW","Europe/Mariehamn":"AX","Asia/Baku":"AZ","Europe/Sarajevo":"BA","America/Barbados":"BB","Asia/Dhaka":"BD","Europe/Brussels":"BE","Africa/Ouagadougou":"BF","Europe/Sofia":"BG","Asia/Bahrain":"BH","Africa/Bujumbura":"BI","Africa/Porto-Novo":"BJ","America/St_Barthelemy":"BL","Atlantic/Bermuda":"BM","Asia/Brunei":"BN","America/La_Paz":"BO","America/Kralendijk":"BQ","America/Noronha":"BR","America/Belem":"BR","America/Fortaleza":"BR","America/Recife":"BR","America/Araguaina":"BR","America/Maceio":"BR","America/Bahia":"BR","America/Sao_Paulo":"BR","America/Campo_Grande":"BR","America/Cuiaba":"BR","America/Santarem":"BR","America/Porto_Velho":"BR","America/Boa_Vista":"BR","America/Manaus":"BR","America/Eirunepe":"BR","America/Rio_Branco":"BR","America/Nassau":"BS","Asia/Thimphu":"BT","Africa/Gaborone":"BW","Europe/Minsk":"BY","America/Belize":"BZ","America/St_Johns":"CA","America/Halifax":"CA","America/Glace_Bay":"CA","America/Moncton":"CA","America/Goose_Bay":"CA","America/Blanc-Sablon":"CA","America/Toronto":"CA","America/Iqaluit":"CA","America/Atikokan":"CA","America/Winnipeg":"CA","America/Resolute":"CA","America/Rankin_Inlet":"CA","America/Regina":"CA","America/Swift_Current":"CA","America/Edmonton":"CA","America/Cambridge_Bay":"CA","America/Inuvik":"CA","America/Vancouver":"CA","America/Creston":"CA","America/Dawson_Creek":"CA","America/Fort_Nelson":"CA","America/Whitehorse":"CA","America/Dawson":"CA","Indian/Cocos":"CC","Africa/Kinshasa":"CD","Africa/Lubumbashi":"CD","Africa/Bangui":"CF","Africa/Brazzaville":"CG","Europe/Zurich":"CH","Africa/Abidjan":"CI","Pacific/Rarotonga":"CK","America/Santiago":"CL","America/Coyhaique":"CL","America/Punta_Arenas":"CL","Pacific/Easter":"CL","Africa/Douala":"CM","Asia/Shanghai":"CN","Asia/Urumqi":"CN","America/Bogota":"CO","America/Costa_Rica":"CR","America/Havana":"CU","Atlantic/Cape_Verde":"CV","America/Curacao":"CW","Indian/Christmas":"CX","Asia/Nicosia":"CY","Asia/Famagusta":"CY","Europe/Prague":"CZ","Europe/Berlin":"DE","Europe/Busingen":"DE","Africa/Djibouti":"DJ","Europe/Copenhagen":"DK","America/Dominica":"DM","America/Santo_Domingo":"DO","Africa/Algiers":"DZ","America/Guayaquil":"EC","Pacific/Galapagos":"EC","Europe/Tallinn":"EE","Africa/Cairo":"EG","Africa/El_Aaiun":"EH","Africa/Asmara":"ER","Europe/Madrid":"ES","Africa/Ceuta":"ES","Atlantic/Canary":"ES","Africa/Addis_Ababa":"ET","Europe/Helsinki":"FI","Pacific/Fiji":"FJ","Atlantic/Stanley":"FK","Pacific/Chuuk":"FM","Pacific/Pohnpei":"FM","Pacific/Kosrae":"FM","Atlantic/Faroe":"FO","Europe/Paris":"FR","Africa/Libreville":"GA","Europe/London":"GB","America/Grenada":"GD","Asia/Tbilisi":"GE","America/Cayenne":"GF","Europe/Guernsey":"GG","Africa/Accra":"GH","Europe/Gibraltar":"GI","America/Nuuk":"GL","America/Danmarkshavn":"GL","America/Scoresbysund":"GL","America/Thule":"GL","Africa/Banjul":"GM","Africa/Conakry":"GN","America/Guadeloupe":"GP","Africa/Malabo":"GQ","Europe/Athens":"GR","Atlantic/South_Georgia":"GS","America/Guatemala":"GT","Pacific/Guam":"GU","Africa/Bissau":"GW","America/Guyana":"GY","Asia/Hong_Kong":"HK","America/Tegucigalpa":"HN","Europe/Zagreb":"HR","America/Port-au-Prince":"HT","Europe/Budapest":"HU","Asia/Jakarta":"ID","Asia/Pontianak":"ID","Asia/Makassar":"ID","Asia/Jayapura":"ID","Europe/Dublin":"IE","Asia/Jerusalem":"IL","Europe/Isle_of_Man":"IM","Asia/Kolkata":"IN","Indian/Chagos":"IO","Asia/Baghdad":"IQ","Asia/Tehran":"IR","Atlantic/Reykjavik":"IS","Europe/Rome":"IT","Europe/Jersey":"JE","America/Jamaica":"JM","Asia/Amman":"JO","Asia/Tokyo":"JP","Africa/Nairobi":"KE","Asia/Bishkek":"KG","Asia/Phnom_Penh":"KH","Pacific/Tarawa":"KI","Pacific/Kanton":"KI","Pacific/Kiritimati":"KI","Indian/Comoro":"KM","America/St_Kitts":"KN","Asia/Pyongyang":"KP","Asia/Seoul":"KR","Asia/Kuwait":"KW","America/Cayman":"KY","Asia/Almaty":"KZ","Asia/Qyzylorda":"KZ","Asia/Qostanay":"KZ","Asia/Aqtobe":"KZ","Asia/Aqtau":"KZ","Asia/Atyrau":"KZ","Asia/Oral":"KZ","Asia/Vientiane":"LA","Asia/Beirut":"LB","America/St_Lucia":"LC","Europe/Vaduz":"LI","Asia/Colombo":"LK","Africa/Monrovia":"LR","Africa/Maseru":"LS","Europe/Vilnius":"LT","Europe/Luxembourg":"LU","Europe/Riga":"LV","Africa/Tripoli":"LY","Africa/Casablanca":"MA","Europe/Monaco":"MC","Europe/Chisinau":"MD","Europe/Podgorica":"ME","America/Marigot":"MF","Indian/Antananarivo":"MG","Pacific/Majuro":"MH","Pacific/Kwajalein":"MH","Europe/Skopje":"MK","Africa/Bamako":"ML","Asia/Yangon":"MM","Asia/Ulaanbaatar":"MN","Asia/Hovd":"MN","Asia/Macau":"MO","Pacific/Saipan":"MP","America/Martinique":"MQ","Africa/Nouakchott":"MR","America/Montserrat":"MS","Europe/Malta":"MT","Indian/Mauritius":"MU","Indian/Maldives":"MV","Africa/Blantyre":"MW","America/Mexico_City":"MX","America/Cancun":"MX","America/Merida":"MX","America/Monterrey":"MX","America/Matamoros":"MX","America/Chihuahua":"MX","America/Ciudad_Juarez":"MX","America/Ojinaga":"MX","America/Mazatlan":"MX","America/Bahia_Banderas":"MX","America/Hermosillo":"MX","America/Tijuana":"MX","Asia/Kuala_Lumpur":"MY","Asia/Kuching":"MY","Africa/Maputo":"MZ","Africa/Windhoek":"NA","Pacific/Noumea":"NC","Africa/Niamey":"NE","Pacific/Norfolk":"NF","Africa/Lagos":"NG","America/Managua":"NI","Europe/Amsterdam":"NL","Europe/Oslo":"NO","Asia/Kathmandu":"NP","Pacific/Nauru":"NR","Pacific/Niue":"NU","Pacific/Auckland":"NZ","Pacific/Chatham":"NZ","Asia/Muscat":"OM","America/Panama":"PA","America/Lima":"PE","Pacific/Tahiti":"PF","Pacific/Marquesas":"PF","Pacific/Gambier":"PF","Pacific/Port_Moresby":"PG","Pacific/Bougainville":"PG","Asia/Manila":"PH","Asia/Karachi":"PK","Europe/Warsaw":"PL","America/Miquelon":"PM","Pacific/Pitcairn":"PN","America/Puerto_Rico":"PR","Asia/Gaza":"PS","Asia/Hebron":"PS","Europe/Lisbon":"PT","Atlantic/Madeira":"PT","Atlantic/Azores":"PT","Pacific/Palau":"PW","America/Asuncion":"PY","Asia/Qatar":"QA","Indian/Reunion":"RE","Europe/Bucharest":"RO","Europe/Belgrade":"RS","Europe/Kaliningrad":"RU","Europe/Moscow":"RU","Europe/Simferopol":"UA","Europe/Kirov":"RU","Europe/Volgograd":"RU","Europe/Astrakhan":"RU","Europe/Saratov":"RU","Europe/Ulyanovsk":"RU","Europe/Samara":"RU","Asia/Yekaterinburg":"RU","Asia/Omsk":"RU","Asia/Novosibirsk":"RU","Asia/Barnaul":"RU","Asia/Tomsk":"RU","Asia/Novokuznetsk":"RU","Asia/Krasnoyarsk":"RU","Asia/Irkutsk":"RU","Asia/Chita":"RU","Asia/Yakutsk":"RU","Asia/Khandyga":"RU","Asia/Vladivostok":"RU","Asia/Ust-Nera":"RU","Asia/Magadan":"RU","Asia/Sakhalin":"RU","Asia/Srednekolymsk":"RU","Asia/Kamchatka":"RU","Asia/Anadyr":"RU","Africa/Kigali":"RW","Asia/Riyadh":"SA","Pacific/Guadalcanal":"SB","Indian/Mahe":"SC","Africa/Khartoum":"SD","Europe/Stockholm":"SE","Asia/Singapore":"SG","Atlantic/St_Helena":"SH","Europe/Ljubljana":"SI","Arctic/Longyearbyen":"SJ","Europe/Bratislava":"SK","Africa/Freetown":"SL","Europe/San_Marino":"SM","Africa/Dakar":"SN","Africa/Mogadishu":"SO","America/Paramaribo":"SR","Africa/Juba":"SS","Africa/Sao_Tome":"ST","America/El_Salvador":"SV","America/Lower_Princes":"SX","Asia/Damascus":"SY","Africa/Mbabane":"SZ","America/Grand_Turk":"TC","Africa/Ndjamena":"TD","Indian/Kerguelen":"TF","Africa/Lome":"TG","Asia/Bangkok":"TH","Asia/Dushanbe":"TJ","Pacific/Fakaofo":"TK","Asia/Dili":"TL","Asia/Ashgabat":"TM","Africa/Tunis":"TN","Pacific/Tongatapu":"TO","Europe/Istanbul":"TR","America/Port_of_Spain":"TT","Pacific/Funafuti":"TV","Asia/Taipei":"TW","Africa/Dar_es_Salaam":"TZ","Europe/Kyiv":"UA","Africa/Kampala":"UG","Pacific/Midway":"UM","Pacific/Wake":"UM","America/New_York":"US","America/Detroit":"US","America/Kentucky/Louisville":"US","America/Kentucky/Monticello":"US","America/Indiana/Indianapolis":"US","America/Indiana/Vincennes":"US","America/Indiana/Winamac":"US","America/Indiana/Marengo":"US","America/Indiana/Petersburg":"US","America/Indiana/Vevay":"US","America/Chicago":"US","America/Indiana/Tell_City":"US","America/Indiana/Knox":"US","America/Menominee":"US","America/North_Dakota/Center":"US","America/North_Dakota/New_Salem":"US","America/North_Dakota/Beulah":"US","America/Denver":"US","America/Boise":"US","America/Phoenix":"US","America/Los_Angeles":"US","America/Anchorage":"US","America/Juneau":"US","America/Sitka":"US","America/Metlakatla":"US","America/Yakutat":"US","America/Nome":"US","America/Adak":"US","Pacific/Honolulu":"US","America/Montevideo":"UY","Asia/Samarkand":"UZ","Asia/Tashkent":"UZ","Europe/Vatican":"VA","America/St_Vincent":"VC","America/Caracas":"VE","America/Tortola":"VG","America/St_Thomas":"VI","Asia/Ho_Chi_Minh":"VN","Pacific/Efate":"VU","Pacific/Wallis":"WF","Pacific/Apia":"WS","Asia/Aden":"YE","Indian/Mayotte":"YT","Africa/Johannesburg":"ZA","Africa/Lusaka":"ZM","Africa/Harare":"ZW","Asia/Calcutta":"IN","Asia/Saigon":"VN","Asia/Katmandu":"NP","Asia/Rangoon":"MM","Europe/Kiev":"UA","America/Buenos_Aires":"AR","Asia/Ujung_Pandang":"ID","Asia/Chongqing":"CN","Asia/Harbin":"CN","US/Eastern":"US","US/Central":"US","US/Mountain":"US","US/Pacific":"US","Australia/ACT":"AU","Australia/NSW":"AU"};
+  setPlace(TZ_COUNTRY[tz] ? regionName(TZ_COUNTRY[tz]) : "");
+  const tick = () => {
+    const d = new Date();
+    $("cdate").textContent = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    $("clock").textContent = d.toLocaleTimeString("en-GB", { hour12: false });
+  };
+  tick(); setInterval(tick, 1000);
+  setInterval(() => setPlace(), 60000);            // keeps UTC offset right across daylight-saving changes
+}
+
+// ---------- signed-in user (only when running with app.py; a static website has no sign-in) ----------
+fetch("api/me").then(r => r.ok ? r.json() : null).then(j => {
+  if (j && j.user) { $("whoname").textContent = "Signed in as " + j.user; $("who").hidden = false; }
+}).catch(() => {});
+
+$("loading").style.display = "none";
+frame();
+</script>
+</body>
+</html>
