@@ -229,21 +229,21 @@ The color bar used here is an approximation copied by eye from the Worldview leg
 
 Done by `build_assets.py` (function `compose_music`) together with `orchestra.py`. Each day is one musical beat, 4 days make one bar.
 
-#### 4.1 Colours become instruments
+#### 4.1 Musical Instruments Selection
 
 For every day the code also measures how much of the globe is in each of the 7 colours of the colour bar
 (the same nearest-colour matching as Step 3, on up to 6000 sampled pixels). Each colour drives one section of the orchestra.
 The more of a colour there is, compared with how much there usually is, the louder its section plays.
 
-| Colour | Temperature | Section | What it plays | Feeling |
+| Colour | Magnitude | Section | What it plays | Feeling |
 |---|---|---|---|---|
-| Purple | coldest | Celesta | Glassy bells an octave above the melody | Ice crystals |
-| Blue | very cold | Cellos & Basses | The bass line (southern hemisphere) | Deep, heavy cold |
-| Cyan | cold | Harp | Arpeggios of the chord | Flowing meltwater |
-| Green | mild | Clarinet | A countermelody under the violins | Warm inner voice |
-| Yellow | warm | Flute | Doubles the melody an octave higher | Light, sunny |
-| Orange | warmer | French Horns | Broad sustained chords | Warmth, swelling |
-| Red | hottest | Trumpets & Timpani | Fanfares and drums on the first beat of a bar | Heat, alarm |
+| Purple | Lowest | Celesta | Glassy bells an octave above the melody | Ice crystals |
+| Blue | Very Low | Cellos & Basses | The bass line (southern hemisphere) | Deep, heavy cold |
+| Cyan | Low | Harp | Arpeggios of the chord | Flowing meltwater |
+| Green | Moderate | Clarinet | A countermelody under the violins | Warm inner voice |
+| Yellow | High | Flute | Doubles the melody an octave higher | Light, sunny |
+| Orange | Very High | French Horns | Broad sustained chords | Warmth, swelling |
+| Red | Highest | Trumpets & Timpani | Fanfares and drums on the first beat of a bar | Heat, alarm |
 
 Always playing, whatever the colours: **Violins** (the melody) and **Violas** (a soft chord bed).
 
@@ -251,22 +251,23 @@ How loud a section is: `level = base + (1 - base) * share`, where `share` is the
 5th and 95th percentile over the data, and `base` is a small minimum (set in `SECTIONS` in `orchestra.py`) so the orchestra never goes silent.
 These colour ranges are frozen in `calibration.json` like the pitch ranges, so old days keep the same instrumentation when new data arrives.
 
-#### 4.2 What the temperature controls
+#### 4.2 Soundscape Composition
 
 | Music element | What it represents |
 |---|---|
-| Melody (violins) | Northern hemisphere temperature. Warmer is higher. Two octaves from C4. On beats 1 and 3 it lands on a note of the chord |
-| Bass (cellos & basses) | Southern hemisphere temperature. Warmer is higher. Root of the chord on beat 1 |
-| Major or minor | Overall trend of both hemispheres. Warming means C major, cooling means C minor |
-| Tempo | How fast the temperature is changing. From 66 BPM (calm) to 132 BPM (fast change) |
-| Crescendo and decrescendo | Volume rises while warming and falls while cooling |
+| Melody (violins) | Northern hemisphere magnitude where warmer colour produces higher pitch. Two octaves from C4. On beats 1 and 3 it lands on a note of the chord |
+| Bass (cellos & basses) | Southern hemisphere magnitude where warmer colour produces higher pitch. Root of the chord on beat 1 |
+| Major or minor | Overall trend of both hemispheres. Higher magnitude telemetry plays C major, while lower magnitude telemetry plays C minor |
+| Tempo | How fast the visuals are changing over time. From 66 BPM (calm) to 132 BPM (fast change) |
+| Crescendo and decrescendo | Volume rises with increasing magnitude |
 | Quick two-note run | Added on days with a sharp change |
 | Chords | One chord per bar: I - vi - IV - V in major, i - VI - iv - V in minor (with a raised 7th, B natural, on V) |
 | Stereo seating | Like a concert stage: violins and harp left, violas and woodwinds centre, cellos, basses and trumpets right |
 
+
 #### 4.3 Major and minor changes
 
-1. Compute the day-to-day change of each hemisphere's smoothed temperature, scale both to count equally, average them and smooth over 15 days. This is the "net trend".
+1. Compute the day-to-day change of each hemisphere's smoothened intensity, scale both to count equally, average them and smooth over 15 days. This is the "net trend".
 2. The key switches to C minor when the trend falls below -0.05 and back to C major when it rises above +0.05 (`MODE_HYST` in `build_assets.py`). This small gap stops the key from flickering when the trend hovers around zero.
 3. On the day of a key change the orchestra plays a pivot: the G major chord (the dominant, shared by both keys) with a timpani roll and a horn swell, then the tonic chord of the new key.
 4. In minor the harp arpeggios fall instead of rise.
