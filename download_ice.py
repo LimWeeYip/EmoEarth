@@ -7,7 +7,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 
-
+# ---------- 设置 ----------
 START = dt.date(2026, 1, 1)
 END = dt.date(2026, 6, 1)           # 包含这一天
 
@@ -78,9 +78,9 @@ def available_dates():
                         d += dt.timedelta(days=1)
                 elif len(parts) == 1 and parts[0]:
                     days.add(dt.date.fromisoformat(parts[0][:10]))
-            print(f"图层数据范围：{min(days)} 到 {max(days)}（total {len(days)} day）")
+            print(f"图层数据范围：{min(days)} 到 {max(days)}（共 {len(days)} 天）")
             return days
-    print(f"在 {REGION} 区域没有找到图层 {LAYER}，change location。")
+    print(f"在 {REGION} 区域没有找到图层 {LAYER}，请换一个区域再试。")
     raise SystemExit(1)
 
 
@@ -100,7 +100,7 @@ def fetch(layers, day, retries=3):
             print(f"  {day}: 服务器返回非图片 -> {r.text[:150]!r}")
             return None
         except requests.RequestException as e:
-            print(f"  {day}: 第 {attempt + 1} fail ({e})")
+            print(f"  {day}: 第 {attempt + 1} 次失败 ({e})")
             time.sleep(2)
     return None
 
@@ -108,7 +108,7 @@ def fetch(layers, day, retries=3):
 days_ok = available_dates()
 layers = f"BlueMarble_NextGeneration,{LAYER},Coastlines_15m" if ADD_BASEMAP else LAYER
 if ADD_BASEMAP and REGION != "global":
-    layers = f"BlueMarble_NextGeneration,{LAYER}"      
+    layers = f"BlueMarble_NextGeneration,{LAYER}"      # 极地区域的底图和海岸线图层名未验证，先不用
 
 saved, skipped, failed = 0, [], []
 day = START
