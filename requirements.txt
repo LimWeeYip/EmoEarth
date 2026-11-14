@@ -1,0 +1,25 @@
+# EmoEarth Python packages. Install all with:  python -m pip install -r requirements.txt
+
+# --- core: download, build, music, web app ---
+requests>=2.31          # NASA GIBS downloads (update_data.py, download_ice.py)
+pillow>=10.1            # reading, resizing and saving images (PIL)
+numpy>=1.26             # image analysis and synthesizing the orchestra
+flask>=3.0              # web server (app.py)
+lameenc>=1.7            # makes music.mp3 (without it the page plays music.wav)
+pandas>=2.1             # sound wave tables (export_wave.py)
+owslib>=0.29            # GIBS / WMS helper
+
+# --- narration for blind and low-vision listeners (narrate.py) ---
+google-genai>=1.0       # Gemini writes the description (key in .env)
+pyttsx3>=2.90           # turns the description into narration.wav
+
+# --- sign-in with Firebase (only used when the Firebase files are present, see README 5a) ---
+firebase-admin>=6.5       # checks Firebase sign-ins on the server
+
+# --- hosting on Azure (README 9b; make_azure_package.py writes its own short list for the server) ---
+gunicorn>=22.0            # the web server Azure uses to run app.py (not needed for python app.py; does not run on Windows)
+
+# --- optional older tools ---
+matplotlib>=3.8         # flat 2D animations (animate_ice.py, animate_ice_music.py, showframe.py)
+sounddevice>=0.4        # plays music with the flat animation (animate_ice_music.py)
+opencv-python>=4.8      # image metrics in narration.py, imgprocessing_darkspots_removal.py
