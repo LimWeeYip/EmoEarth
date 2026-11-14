@@ -7,7 +7,7 @@ import numpy as np
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-# ---------- 设置 ----------
+
 START = dt.date(2026, 1, 1)
 END = dt.date(2026, 5, 1)
 MISSING = (dt.date(2026, 1, 20), dt.date(2026, 1, 27))   # 该图层无数据的日期
