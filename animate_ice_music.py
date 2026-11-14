@@ -40,7 +40,7 @@ MAJOR = [0, 2, 4, 5, 7, 9, 11]
 MINOR = [0, 2, 3, 5, 7, 8, 10]
 rng = np.random.default_rng(0)
 
-# ---------- 色条与颜色→温度 ----------
+# ---------- 色条与颜色→temperature ----------
 STOPS_HEX = ["#8a1cff", "#1a1aff", "#2ec8ff", "#66e64d", "#ffff33", "#ff9a1a", "#e6331a"]
 cmap = LinearSegmentedColormap.from_list("ist", STOPS_HEX)
 STOPS = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in STOPS_HEX], dtype=np.float32)
@@ -50,7 +50,7 @@ LUT = np.stack([np.interp(np.linspace(0, 1, 256), POS, STOPS[:, c]) for c in ran
 
 def half_stats(arr):
     pix = arr.reshape(-1, 3).astype(np.float32)
-    valid = pix.max(axis=1) > 12                  # 纯黑 = 没有数据
+    valid = pix.max(axis=1) > 12                  
     if valid.sum() < 50:
         return np.nan
     v = pix[valid]
