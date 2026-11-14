@@ -1,0 +1,28 @@
+# secrets: never in git
+.env
+!.env.example
+users.json
+.flask_secret
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+azure_app_settings.json
+
+# Python and Mac clutter
+venv/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# made by the app or the deploy script
+logs/
+azure_deploy.zip
+azure_deploy.zip.tmp
+.deploy_state.json
+
+# large NASA downloads and big music files
+Ice Surface Temperature (Day)/
+Ocean Currents (ECCO2)/
+Carbon Dioxide (DYAMOND)/
+static/data/ocean/music.wav
+static/data/co2/music.wav
