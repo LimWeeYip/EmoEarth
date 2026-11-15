@@ -1,10 +1,7 @@
 2026-11-07T20:54:25  Rebuilt. Latest day: 2026-11-07. New: 159, refreshed: 0, not ready: 0, failed: 0.
-<<<<<<< HEAD
-2026-11-08T01:08:51  Rebuilt. Latest day: 2026-11-07. New: 0, refreshed: 1, not ready: 0, failed: 0.
-=======
 2026-11-07T23:44:02  Rebuilt. Latest day: 2026-11-07. New: 0, refreshed: 1, not ready: 0, failed: 0.
 2026-11-07T23:58:39  No new data. Latest day: 2026-11-07. New: 0, refreshed: 0, not ready: 0, failed: 0.
->>>>>>> e30fb528959facef30ebf4ba2b03d4f3bced8d07
+2026-11-08T01:08:51  Rebuilt. Latest day: 2026-11-07. New: 0, refreshed: 1, not ready: 0, failed: 0.
 2026-11-09T20:58:31  Rebuilt. Latest day: 2026-11-09. New: 1, refreshed: 3, not ready: 0, failed: 0.
 2026-11-12T22:25:12  Layer MODIS_Terra_Ice_Surface_Temp_Day not found in GIBS capabilities.
 2026-11-12T22:31:24  Rebuilt. Latest day: 2026-11-12. New: 1, refreshed: 1, not ready: 0, failed: 3.

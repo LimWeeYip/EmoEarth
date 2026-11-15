@@ -608,29 +608,11 @@ python build_ocean.py           # globe frames, the ocean orchestra and its time
 - Credit: NASA/Goddard Space Flight Center Scientific Visualization Studio (https://svs.gsfc.nasa.gov/3912); ECCO2 model data from MIT/JPL (scientists Hong Zhang and Dimitris Menemenlis). Shown under the colour bar.
 
 **Size:** the 345 ocean frames add about 170 MB to `static/data` (`FRAME_WIDTH = 1600` in `build_ocean.py`; 2048, NASA's full width, is sharper but about 2.5 times bigger). `make_azure_package.py` includes them automatically (without `ocean/music.wav`); the Azure upload grows by the same amount. If that is too much for the Free plan, use `python download_ocean.py --step 2`.
->>>>>>> cfb1beb (Added the dependencies folder)
 
 
 ### The carbon dioxide layer (DYAMOND)
 
-<<<<<<< HEAD
-## 1. Data Sources
-| Item | Source |
-|---|---|
-| Temperature imagery | NASA GIBS (Global Imagery Browse Services), layer `MODIS_Terra_Ice_Surface_Temp_Day` (Terra / MODIS, v6.1 STD) |
-| How it is fetched | GIBS WMS service (`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`), no API key needed |
-| Browse the same layer | NASA Worldview (https://worldview.earthdata.nasa.gov) |
-| Base map (optional) | GIBS layer `BlueMarble_NextGeneration` |
-| Country borders | GIBS layer `DoS_International_Boundaries` (U.S. Department of State) if available as an image; otherwise Natural Earth country borders via the `world-atlas` package on the jsdelivr CDN |
-| Coastlines | GIBS layer `Coastlines_15m` if available as an image; otherwise land outlines from Natural Earth (`world-atlas` on the jsdelivr CDN) |
-| Color scale | 223.2 K to 313.2 K (about -50 °C to 40 °C) |
-| Ocean layer (optional) | NASA/GSFC Scientific Visualization Studio 3912, "Global Sea Surface Currents and Temperature": ECCO2 model (MIT/JPL), 2007-03-25 to 2008-03-03, frames from https://svs.gsfc.nasa.gov/vis/a000000/a003900/a003912/frames/2048x1024_1x1_30p/ (see 5c) |
-| Ocean colour scale | 0 °C (blue) to 32 °C (red), NASA's colour bar `sst_ecco2_cbar.png` |
-| Carbon dioxide layer (optional) | NASA/GSFC Scientific Visualization Studio 5436, "DYAMOND Global Carbon Dioxide" (Science On a Sphere version of 5196): NASA GEOS model, 2020-01-14 to 2020-03-03, hourly frames from https://svs.gsfc.nasa.gov/vis/a000000/a005400/a005436/frames/8192x4096_2x1_30p/soscomp_1-29-2025a_pngs/ (see 5c) |
-| Carbon dioxide colour scale | 380 to 460 ppm (`dyamondCbar_6-27-2024a.png`); see-through below about 425 ppm, then tan, orange and red |
-=======
 **Carbon dioxide (DYAMOND)** in the layer menu shows NASA's GEOS model of carbon dioxide in the air, 15 January to 3 March 2020 (NASA SVS 5436, the Science On a Sphere version of 5196), one frame every 6 hours (196 frames). NASA's pictures already include the land, snow, ice and ocean, so the base map is not needed; carbon dioxide is drawn as tan, orange and red clouds drifting with the wind (fires, cities and industry, mostly in Africa, South and East Asia). Below about 425 ppm the colour is see-through, so the legend's colour bar fades out on the left.
->>>>>>> cfb1beb (Added the dependencies folder)
 
 **Making it (once)**
 ```
