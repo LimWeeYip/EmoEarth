@@ -913,7 +913,7 @@ Newest first. Add a line here for every update.
 
 How to release: change `static/version.txt` (for example to `v1.2`), rename the "Unreleased" heading below to that version and date, commit, and push.
 
-### Unreleased (2026-11-07 to 2026-11-14): Panels, equalizer, narration, sign-in, Azure, ocean and CO2 layers, logs and sign-in counts
+### Unreleased (2026-11-14 to 2026-11-15): Panels, equalizer, narration, sign-in, Azure, ocean and CO2 layers, logs and sign-in counts
 - Each panel (info, legend and orchestra, playback bar) has a – button in its top-right corner that minimises it to its title; + expands it again. The browser remembers the choice.
 - Right-drag or Shift+drag slides the Earth left or right on the screen; double-click re-centres it. Normal drag still rotates.
 - New date and time box in the top-right corner: date, live clock, country, UTC offset and time zone.
@@ -958,7 +958,7 @@ How to release: change `static/version.txt` (for example to `v1.2`), rename the 
 - `/stats` and `python signins.py` now count Guest Only visits on their own: guest visits, different guest browsers, today, last 7 days, share of all sign-ins, and guests per day.
 - `python signins.py reset [kinds...]` resets the sign-in counts (all, or only e.g. `guest` and `email only`), keeping a backup copy.
 
-### v1.1 (2026-11-07): Orchestra and emotion
+### v1.1 (2026-11-14): Orchestra and emotion
 - New `orchestra.py`: the music is now a synthesized orchestra (violins, violas, cellos & basses, celesta, harp, clarinet, flute, French horns, trumpets & timpani).
 - Each of the 7 map colours drives one section; its loudness follows how much of that colour is on the globe that day.
 - Major and minor changes now use a small threshold (no flickering) and are marked by a pivot chord, a timpani roll and a horn swell.
@@ -968,5 +968,5 @@ How to release: change `static/version.txt` (for example to `v1.2`), rename the 
 - After updating, run `python app.py --rebuild` once (or `python build_assets.py`). The first build re-reads every image to measure the colours, so it takes a few minutes.
 - The previous music is kept in `backup_before_orchestra/`.
 
-### v1.0 (2026-11-07): Version label
+### v1.0 (2026-11-14): Version label
 - The app version is shown at the bottom right of the page and read from `static/version.txt`.
