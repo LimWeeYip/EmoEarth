@@ -1,6 +1,4 @@
 # 🌍 EmoEarth: NASA Earth Data as a 3D Globe with Music 
-<<<<<<< HEAD
-=======
 
 A project that downloads NASA Earth data, cleans it,
 turns the colours and their change into orchestral music, and plays both together on an interactive 3D globe,
@@ -16,15 +14,16 @@ This project is fully compatible with the following operating systems:
 *   **macOS**
 *   **Windows**
 
+Browser Compatibility: Verified to work on the latest versions of Google Chrome, Microsoft Edge, and Apple Safari.
+
 ---
 
-## 1. Data source
+## 1. Data Sources
 
 | Item | Source |
 |---|---|
-| Temperature imagery | NASA GIBS (Global Imagery Browse Services), layer `MODIS_Terra_Ice_Surface_Temp_Day` (Terra / MODIS, v6.1 STD) |
-| How it is fetched | GIBS WMS service (`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`), no API key needed |
-| Browse the same layer | NASA Worldview (https://worldview.earthdata.nasa.gov) |
+| Ice Surface Temperature | NASA Worldview (https://worldview.earthdata.nasa.gov); NASA GIBS (Global Imagery Browse Services), layer `MODIS_Terra_Ice_Surface_Temp_Day` (Terra / MODIS, v6.1 STD) |
+| Data Retrieval | GIBS WMS service (`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`), no API key needed |
 | Base map (optional) | GIBS layer `BlueMarble_NextGeneration` |
 | Country borders | GIBS layer `DoS_International_Boundaries` (U.S. Department of State) if available as an image; otherwise Natural Earth country borders via the `world-atlas` package on the jsdelivr CDN |
 | Coastlines | GIBS layer `Coastlines_15m` if available as an image; otherwise land outlines from Natural Earth (`world-atlas` on the jsdelivr CDN) |
@@ -229,21 +228,21 @@ The color bar used here is an approximation copied by eye from the Worldview leg
 
 Done by `build_assets.py` (function `compose_music`) together with `orchestra.py`. Each day is one musical beat, 4 days make one bar.
 
-#### 4.1 Colours become instruments
+#### 4.1 Musical Instruments Selection
 
 For every day the code also measures how much of the globe is in each of the 7 colours of the colour bar
 (the same nearest-colour matching as Step 3, on up to 6000 sampled pixels). Each colour drives one section of the orchestra.
 The more of a colour there is, compared with how much there usually is, the louder its section plays.
 
-| Colour | Temperature | Section | What it plays | Feeling |
+| Colour | Magnitude | Section | What it plays | Feeling |
 |---|---|---|---|---|
-| Purple | coldest | Celesta | Glassy bells an octave above the melody | Ice crystals |
-| Blue | very cold | Cellos & Basses | The bass line (southern hemisphere) | Deep, heavy cold |
-| Cyan | cold | Harp | Arpeggios of the chord | Flowing meltwater |
-| Green | mild | Clarinet | A countermelody under the violins | Warm inner voice |
-| Yellow | warm | Flute | Doubles the melody an octave higher | Light, sunny |
-| Orange | warmer | French Horns | Broad sustained chords | Warmth, swelling |
-| Red | hottest | Trumpets & Timpani | Fanfares and drums on the first beat of a bar | Heat, alarm |
+| Purple | Lowest | Celesta | Glassy bells an octave above the melody | Ice crystals |
+| Blue | Very Low | Cellos & Basses | The bass line (southern hemisphere) | Deep, heavy cold |
+| Cyan | Low | Harp | Arpeggios of the chord | Flowing meltwater |
+| Green | Moderate | Clarinet | A countermelody under the violins | Warm inner voice |
+| Yellow | High | Flute | Doubles the melody an octave higher | Light, sunny |
+| Orange | Very High | French Horns | Broad sustained chords | Warmth, swelling |
+| Red | Highest | Trumpets & Timpani | Fanfares and drums on the first beat of a bar | Heat, alarm |
 
 Always playing, whatever the colours: **Violins** (the melody) and **Violas** (a soft chord bed).
 
@@ -251,22 +250,23 @@ How loud a section is: `level = base + (1 - base) * share`, where `share` is the
 5th and 95th percentile over the data, and `base` is a small minimum (set in `SECTIONS` in `orchestra.py`) so the orchestra never goes silent.
 These colour ranges are frozen in `calibration.json` like the pitch ranges, so old days keep the same instrumentation when new data arrives.
 
-#### 4.2 What the temperature controls
+#### 4.2 Soundscape Composition
 
 | Music element | What it represents |
 |---|---|
-| Melody (violins) | Northern hemisphere temperature. Warmer is higher. Two octaves from C4. On beats 1 and 3 it lands on a note of the chord |
-| Bass (cellos & basses) | Southern hemisphere temperature. Warmer is higher. Root of the chord on beat 1 |
-| Major or minor | Overall trend of both hemispheres. Warming means C major, cooling means C minor |
-| Tempo | How fast the temperature is changing. From 66 BPM (calm) to 132 BPM (fast change) |
-| Crescendo and decrescendo | Volume rises while warming and falls while cooling |
+| Melody (violins) | Northern hemisphere magnitude where warmer colour produces higher pitch. Two octaves from C4. On beats 1 and 3 it lands on a note of the chord |
+| Bass (cellos & basses) | Southern hemisphere magnitude where warmer colour produces higher pitch. Root of the chord on beat 1 |
+| Major or minor | Overall trend of both hemispheres. Higher magnitude telemetry plays C major, while lower magnitude telemetry plays C minor |
+| Tempo | How fast the visuals are changing over time. From 66 BPM (calm) to 132 BPM (fast change) |
+| Crescendo and decrescendo | Volume rises with increasing magnitude |
 | Quick two-note run | Added on days with a sharp change |
 | Chords | One chord per bar: I - vi - IV - V in major, i - VI - iv - V in minor (with a raised 7th, B natural, on V) |
 | Stereo seating | Like a concert stage: violins and harp left, violas and woodwinds centre, cellos, basses and trumpets right |
 
+
 #### 4.3 Major and minor changes
 
-1. Compute the day-to-day change of each hemisphere's smoothed temperature, scale both to count equally, average them and smooth over 15 days. This is the "net trend".
+1. Compute the day-to-day change of each hemisphere's smoothened intensity, scale both to count equally, average them and smooth over 15 days. This is the "net trend".
 2. The key switches to C minor when the trend falls below -0.05 and back to C major when it rises above +0.05 (`MODE_HYST` in `build_assets.py`). This small gap stops the key from flickering when the trend hovers around zero.
 3. On the day of a key change the orchestra plays a pivot: the G major chord (the dominant, shared by both keys) with a timpani roll and a horn swell, then the tonic chord of the new key.
 4. In minor the harp arpeggios fall instead of rise.
@@ -296,7 +296,7 @@ The emotion changes how the orchestra plays:
 
 #### 4.5 Sound generation
 
-No samples or MIDI are used. Every instrument is synthesized in Python with numpy:
+No samples or MIDI are used, instruments are synthesized in Python with numpy:
 - Bowed strings, woodwinds and brass: wavetables with each instrument's overtone recipe, several slightly detuned players per section and vibrato that fades in after the attack.
 - Flute: also a little breath noise.
 - Harp: plucked strings whose higher overtones die away faster.
@@ -381,19 +381,19 @@ Writes `static/data/narration.json` and, if pyttsx3 works, `static/data/narratio
 | Base map | Show or hide the dim Earth surface (off by default) |
 | Borders | Show or hide country borders (off by default) |
 | Coastlines | Show or hide coastlines (on by default) |
-| Data opacity | Fade the temperature layer |
+| Data opacity | Fade the observation layer |
 
 ### What is on the screen
 
 | Where (default) | Panel | Shows |
 |---|---|---|
 | Top left | Logos | NASA and Star Trek logos (`static/logo/`) |
-| Left | Info panel | Current date, the day's **emotion** ("Feeling: Serene"), key, BPM, dynamic marking (pp to ff), crescendo or decrescendo, approximate north and south temperatures, latest data date with a "Check for new data" button, and a small chart of both hemispheres with a moving playhead |
+| Left | Info panel | Current date, the day's **emotion** ("Feeling: Serene"), key, BPM, dynamic marking (pp to ff), crescendo or decrescendo, approximate north and south hemispheres signals, latest data date with a "Check for new data" button, and a small chart of both hemispheres with a moving playhead |
 | Top centre | Narration caption | The words being spoken, shown only while the narration plays |
 | Top right | Date and time box | Today's date, a live clock, and the country, UTC offset and time zone |
 | Right | Legend panel | The layer menu, that layer's colour bar (and source for the ocean layer), the orchestra mixer and the equalizer bars |
 | Bottom centre | Playback bar | ▶ / ⏸ (⏭ skips the narration), 🗣 Describe, seek bar, view buttons, layer switches, Narration first and data opacity |
-| Bottom right | Version | e.g. "EmoEarth v3.0 · updated 14 Nov 2026, 11:56" (when it was put online; hover for details) |
+| Bottom right | Version | e.g. "EmoEarth v3.0" (when it was put online; hover for details) |
 
 Every panel can be dragged, and the info, legend and playback panels can be minimised (see Controls).
 

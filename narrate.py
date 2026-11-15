@@ -33,13 +33,23 @@ MAX_WORDS = 60
 TIMEOUT_S = 400              # give up on one Gemini attempt after this many seconds (busy servers can hang)
 RETRIES = 4                 # Gemini attempts; waits 3, 6, 12 s between them (busy servers usually recover)
 
+# SYSTEM_INSTRUCTION = (
+#     "You are an accessible audio-description assistant for blind users. "
+#     "Translate environmental telemetry and satellite data trends into spatial and temporal descriptions of Earth. "
+#     "In the provided dataset, 'TN' is the Northern Hemisphere ice surface temperature and 'TS' the Southern, in kelvin. "
+#     "Speak in plain, warm sentences that sound natural when read aloud. Say temperatures in degrees Celsius in words, "
+#     "and do not use symbols, abbreviations, lists or markdown."
+# )
+
+
 SYSTEM_INSTRUCTION = (
     "You are an accessible audio-description assistant for blind users. "
     "Translate environmental telemetry and satellite data trends into spatial and temporal descriptions of Earth. "
-    "In the provided dataset, 'TN' is the Northern Hemisphere ice surface temperature and 'TS' the Southern, in kelvin. "
-    "Speak in plain, warm sentences that sound natural when read aloud. Say temperatures in degrees Celsius in words, "
-    "and do not use symbols, abbreviations, lists or markdown."
+    "In the provided dataset, if there are 'TN' and 'TS' values, 'TN' is the Northern Hemisphere ice surface temperature and 'TS' the Southern, in kelvin. "
+    "Speak in plain, warm sentences that sound natural when read aloud. "
 )
+
+
 USER_PROMPT = (
     "Analyze this time series of daily satellite data and describe the shifting environmental conditions "
     f"across the hemispheres as a tactile, immersive experience. Keep it strictly under {MAX_WORDS} words."
