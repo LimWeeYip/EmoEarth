@@ -1,3 +1,4 @@
+
 import os
 import sys
 import json
@@ -445,8 +446,40 @@ def stats_csv():
                     headers={"Content-Disposition": "attachment; filename=emoearth_signins.csv"})
 
 
+# ---------- narration: remake it once, the first time someone opens the page after the app starts ----------
+NARRATE_SCRIPT = os.path.join(BASE_DIR, "narrate.py")
+_narrate_started = False
+_narrate_lock = threading.Lock()
+
+
+def start_narration_once():
+    """Runs "python narrate.py --fresh" in the background (old narration.wav deleted first, then Gemini and the
+    voice engine make new ones). Only once per app start, never blocks the page, and never runs twice at a time."""
+    global _narrate_started
+    with _narrate_lock:
+        if _narrate_started or not os.path.exists(NARRATE_SCRIPT):
+            return
+        _narrate_started = True
+
+    def work():
+        import subprocess
+        log.info("Narration: first page load, making a new narration in the background.")
+        try:
+            r = subprocess.run([sys.executable, NARRATE_SCRIPT, "--fresh"], cwd=BASE_DIR, capture_output=True,
+                               text=True, timeout=900)
+            last = (r.stdout.strip().splitlines() or [""])[-2:]
+            log.info("Narration finished (exit %s): %s", r.returncode, " | ".join(last)[:300])
+            if r.returncode != 0:
+                log.warning("Narration problem: %s", r.stderr.strip()[-500:])
+        except Exception as e:
+            log.warning("Narration could not run: %s", e)
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 @app.route("/")
 def index():
+    start_narration_once()
     return send_from_directory(STATIC_DIR, "index.html")
 
 

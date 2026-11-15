@@ -26,3 +26,6 @@ Ocean Currents (ECCO2)/
 Carbon Dioxide (DYAMOND)/
 static/data/ocean/music.wav
 static/data/co2/music.wav
+
+# VS Code settings (my own setup)
+.vscode/

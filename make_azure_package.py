@@ -13,7 +13,7 @@ import datetime as dt
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(BASE, "azure_deploy.zip")
-CODE = ["app.py", "applog.py", "auth.py", "signins.py", "build_assets.py", "update_data.py", "orchestra.py", "firebase_web_config.json"]
+CODE = ["app.py", "applog.py", "auth.py", "signins.py", "build_assets.py", "update_data.py", "orchestra.py", "narrate.py", "firebase_web_config.json"]
 SKIP_STATIC = {os.path.join("static", "data", "music.wav"), os.path.join("static", "data", "ocean", "music.wav"),
                os.path.join("static", "data", "co2", "music.wav")}
 
@@ -25,6 +25,7 @@ requests>=2.31
 pillow>=10.1
 numpy>=1.26
 lameenc>=1.7
+google-genai>=1.0
 """
 
 
