@@ -1,6 +1,4 @@
 # 🌍 EmoEarth: NASA Earth Data as a 3D Globe with Music 
-<<<<<<< HEAD
-=======
 
 A project that downloads NASA Earth data, cleans it,
 turns the colours and their change into orchestral music, and plays both together on an interactive 3D globe,
@@ -16,15 +14,16 @@ This project is fully compatible with the following operating systems:
 *   **macOS**
 *   **Windows**
 
+Browser Compatibility: Verified to work on the latest versions of Google Chrome, Microsoft Edge, and Apple Safari.
+
 ---
 
-## 1. Data source
+## 1. Data Sources
 
 | Item | Source |
 |---|---|
-| Temperature imagery | NASA GIBS (Global Imagery Browse Services), layer `MODIS_Terra_Ice_Surface_Temp_Day` (Terra / MODIS, v6.1 STD) |
-| How it is fetched | GIBS WMS service (`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`), no API key needed |
-| Browse the same layer | NASA Worldview (https://worldview.earthdata.nasa.gov) |
+| Ice Surface Temperature | NASA Worldview (https://worldview.earthdata.nasa.gov); NASA GIBS (Global Imagery Browse Services), layer `MODIS_Terra_Ice_Surface_Temp_Day` (Terra / MODIS, v6.1 STD) |
+| Data Retrieval | GIBS WMS service (`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`), no API key needed |
 | Base map (optional) | GIBS layer `BlueMarble_NextGeneration` |
 | Country borders | GIBS layer `DoS_International_Boundaries` (U.S. Department of State) if available as an image; otherwise Natural Earth country borders via the `world-atlas` package on the jsdelivr CDN |
 | Coastlines | GIBS layer `Coastlines_15m` if available as an image; otherwise land outlines from Natural Earth (`world-atlas` on the jsdelivr CDN) |
@@ -297,7 +296,7 @@ The emotion changes how the orchestra plays:
 
 #### 4.5 Sound generation
 
-No samples or MIDI are used. Every instrument is synthesized in Python with numpy:
+No samples or MIDI are used, instruments are synthesized in Python with numpy:
 - Bowed strings, woodwinds and brass: wavetables with each instrument's overtone recipe, several slightly detuned players per section and vibrato that fades in after the attack.
 - Flute: also a little breath noise.
 - Harp: plucked strings whose higher overtones die away faster.
@@ -382,19 +381,19 @@ Writes `static/data/narration.json` and, if pyttsx3 works, `static/data/narratio
 | Base map | Show or hide the dim Earth surface (off by default) |
 | Borders | Show or hide country borders (off by default) |
 | Coastlines | Show or hide coastlines (on by default) |
-| Data opacity | Fade the temperature layer |
+| Data opacity | Fade the observation layer |
 
 ### What is on the screen
 
 | Where (default) | Panel | Shows |
 |---|---|---|
 | Top left | Logos | NASA and Star Trek logos (`static/logo/`) |
-| Left | Info panel | Current date, the day's **emotion** ("Feeling: Serene"), key, BPM, dynamic marking (pp to ff), crescendo or decrescendo, approximate north and south temperatures, latest data date with a "Check for new data" button, and a small chart of both hemispheres with a moving playhead |
+| Left | Info panel | Current date, the day's **emotion** ("Feeling: Serene"), key, BPM, dynamic marking (pp to ff), crescendo or decrescendo, approximate north and south hemispheres signals, latest data date with a "Check for new data" button, and a small chart of both hemispheres with a moving playhead |
 | Top centre | Narration caption | The words being spoken, shown only while the narration plays |
 | Top right | Date and time box | Today's date, a live clock, and the country, UTC offset and time zone |
 | Right | Legend panel | The layer menu, that layer's colour bar (and source for the ocean layer), the orchestra mixer and the equalizer bars |
 | Bottom centre | Playback bar | ▶ / ⏸ (⏭ skips the narration), 🗣 Describe, seek bar, view buttons, layer switches, Narration first and data opacity |
-| Bottom right | Version | e.g. "EmoEarth v3.0 · updated 14 Nov 2026, 11:56" (when it was put online; hover for details) |
+| Bottom right | Version | e.g. "EmoEarth v3.0" (when it was put online; hover for details) |
 
 Every panel can be dragged, and the info, legend and playback panels can be minimised (see Controls).
 
