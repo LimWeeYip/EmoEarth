@@ -69,7 +69,7 @@ Python packages (see `requirements.txt`):
 | google-genai | Gemini writes the spoken narration (`narrate.py`) |
 | pyttsx3 | Turns the narration text into `narration.wav` |
 | sounddevice | Plays the music with the flat animation (`animate_ice_music.py`) |
-| opencv-python | Image metrics in `narration.py` and `imgprocessing_darkspots_removal.py` |
+| opencv-python | Image metrics in `imgprocessing_darkspots_removal.py` |
 
 All of them install with `python -m pip install -r requirements.txt`.
 
@@ -120,8 +120,6 @@ EmoEarth/
 ├── signins.py                  Records every sign-in (signins.csv) and counts them for /stats
 ├── users.json                  Accounts (password hashes only; not in git; made by auth.py)
 ├── narrate.py                  Writes the spoken description for blind listeners (Gemini, with a built-in fallback)
-├── narration_json-input.py     Old command name: now just runs narrate.py
-├── narration.py                Experimental: Gemini description from the images themselves
 ├── .env                        Your private API key (not in git; you create it from .env.example)
 ├── .env.example                Template for .env with no secrets (in git)
 ├── download_ice.py             Step 1: downloads the images from GIBS
@@ -519,7 +517,6 @@ EmoEarth can describe the year's data out loud, so someone who cannot see the gl
    python narrate.py --local    # built-in description only, no internet needed
    ```
 
-   (`python narration_json-input.py` still works and does the same.)
 3. It writes `static/data/narration.json` (the text) and, if `pyttsx3` works on your computer, `static/data/narration.wav` (the speech).
 
    | Field in `narration.json` | Meaning |

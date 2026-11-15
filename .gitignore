@@ -29,3 +29,6 @@ static/data/co2/music.wav
 
 # VS Code settings (my own setup)
 .vscode/
+
+# housekeeping: unused files kept only on my Mac (delete when sure)
+_old/
